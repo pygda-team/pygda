@@ -1,0 +1,27 @@
+site_name: PyGDA
+theme: readthedocs
+
+plugins:
+  - mkdocstrings
+
+nav:
+  - GET STARTED: index.md
+  - MODELS: 
+    - GNN.md
+    - DANE.md
+    - ACDNE.md
+    - UDAGCN.md
+    - ASN.md
+    - AdaGCN.md
+    - GRADE.md
+    - SpecReg.md
+    - StruRW.md
+    - JHGDA.md
+    - KBL.md
+    - DMGNN.md
+    - CWGCN.md
+    - SAGDA.md
+    - DGDA.md
+    - A2GNN.md
+    - PairAlign.md
+

@@ -1,4 +1,6 @@
-![](docs/pygda_logo.png)
+# Welcome to PyGDA
+
+![](pygda_logo.png)
 -----
 
 PyGDA is a **Python library** for **Graph Domain Adaptation** built upon [PyTorch](https://pytorch.org/) and [PyG](https://pytorch-geometric.readthedocs.io/en/latest/) to easily train graph domain adaptation models in a [sklearn](https://scikit-learn.org/stable/) style. PyGDA includes **15+** graph domain adaptation models. See examples with PyGDA below!
@@ -17,6 +19,7 @@ model.fit(source_data, target_data)
 logits, labels = model.predict(target_data)
 ```
 **PyGDA is featured for:**
+
 * **Consistent APIs and comprehensive documentation.**
 * **Cover 15+ graph domain adaptation models.**
 * **Scalable architecture that efficiently handles large graph datasets through mini-batching and sampling techniques.**
@@ -24,6 +27,7 @@ logits, labels = model.predict(target_data)
 
 ## Installation
 Note: PyGDA depends on [PyTorch](https://pytorch.org/), [PyG](https://pytorch-geometric.readthedocs.io/en/latest/), and [PyTorch Sparse](https://github.com/rusty1s/pytorch_sparse). PyGDA does not automatically install these libraries for you. Please use the provided links above to install them separately in order to run PyGDA successfully.
+
 * torch>=1.13.1
 * torch_geometric>=2.4.0
 * torch_sparse>=0.6.15
@@ -35,6 +39,7 @@ cd pygda
 ```
 
 **Required Dependencies:**
+
 * python
 * scipy
 * sklearn
@@ -75,26 +80,6 @@ ma_f1 = eval_macro_f1(labels, preds)
 
 ## Create your own GDA model
 In addition to the easy application of existing GDA models, PyGDA makes it simple to implement custom models.
+
 * the customed model should inherit ``BaseGDA`` class.
 * implement your ``fit()``, ``forward_model()``, and ``predict()`` functions.
-
-## Reference
-
-| **ID** | **Paper** | **Method** | **Venue** |
-|--------|---------|:----------:|:--------------:|
-| 1      | [DANE: Domain Adaptive Network Embedding](https://www.ijcai.org/proceedings/2019/606)      |    DANE     |   IJCAI 2019    |
-| 2      | [Adversarial Deep Network Embedding for Cross-network Node Classification](https://arxiv.org/abs/2002.07366) |    ACDNE     |   AAAI 2020    |
-| 3      | [Unsupervised Domain Adaptive Graph Convolutional Networks](https://dl.acm.org/doi/10.1145/3366423.3380219)  |   UDAGCN   |    WWW 2020    |
-| 4      | [Adversarial Separation Network for Cross-Network Node Classification](https://dl.acm.org/doi/abs/10.1145/3459637.3482228)  |    ASN    |  CIKM 2021  |
-| 5      | [Graph Transfer Learning via Adversarial Domain Adaptation with Graph Convolution](https://arxiv.org/abs/1909.01541)  |    AdaGCN    | TKDE 2022 |
-| 6      | [Non-IID Transfer Learning on Graphs](https://ojs.aaai.org/index.php/AAAI/article/view/26231)  |  GRADE   |   AAAI 2023    |
-| 7      | [Graph Domain Adaptation via Theory-Grounded Spectral Regularization](https://openreview.net/forum?id=OysfLgrk8mk)  |   SpecReg    |   ICLR 2023    |
-| 8      | [Structural Re-weighting Improves Graph Domain Adaptation](https://arxiv.org/abs/2306.03221) |   StruRW    |    ICML 2023    |
-| 9      | [Improving Graph Domain Adaptation with Network Hierarchy](https://dl.acm.org/doi/10.1145/3583780.3614928)  | JHGDA |  CIKM 2023  |
-| 10     | [Bridged-GNN: Knowledge Bridge Learning for Effective Knowledge Transfer](https://dl.acm.org/doi/10.1145/3583780.3614796)  |    KBL     |    CIKM 2023    |
-| 11     | [Domain-adaptive Message Passing Graph Neural Network](https://www.sciencedirect.com/science/article/abs/pii/S0893608023002253)  |   DMGNN    |    NN 2023    |
-| 12     | [Correntropy-Induced Wasserstein GCN: Learning Graph Embedding via Domain Adaptation](https://ieeexplore.ieee.org/document/10179964)  |   CWGCN    |    TIP 2023    |
-| 13     | [SA-GDA: Spectral Augmentation for Graph Domain Adaptation](https://dl.acm.org/doi/10.1145/3581783.3612264)  |  SAGDA   |    MM 2023    |
-| 14     | [Graph Domain Adaptation: A Generative View](https://dl.acm.org/doi/10.1145/3631712)  |   DGDA   |    TKDD 2024    |
-| 15     | [Rethinking Propagation for Unsupervised Graph Domain Adaptation](https://arxiv.org/abs/2402.05660)      |    A2GNN    |   AAAI 2024    |   
-| 16     | [Pairwise Alignment Improves Graph Domain Adaptation](https://arxiv.org/abs/2403.01092)      |   PairAlign   |   ICML 2024    |
