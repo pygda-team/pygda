@@ -1,0 +1,7 @@
+# .readthedocs.yaml
+
+# Required
+version: 0.0.1
+
+mkdocs:
+  configuration: mkdocs.yml
