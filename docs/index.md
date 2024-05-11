@@ -46,7 +46,7 @@ cd pygda
 * numpy
 * cvxpy
 
-## Qick Start
+## Quick Start
 
 ### Step 1: Load Data
 ```

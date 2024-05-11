@@ -10,7 +10,7 @@ def guassian_kernel(source, target, kernel_mul=2.0, kernel_num=5, fix_sigma=None
     if fix_sigma:
         bandwidth = fix_sigma
     else:
-        bandwidth = torch.sum(L2_distance.data) / (n_samples**2-n_samples)
+        bandwidth = (torch.sum(L2_distance.data) + 1e-6) / (n_samples**2-n_samples)
     bandwidth /= kernel_mul ** (kernel_num // 2)
     bandwidth_list = [bandwidth * (kernel_mul**i) for i in range(kernel_num)]
     kernel_val = [torch.exp(-L2_distance / bandwidth_temp) for bandwidth_temp in bandwidth_list]

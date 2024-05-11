@@ -1,2 +1,4 @@
-/data
 *.pyc
+test.py
+data/*
+!data/README.md
