@@ -42,20 +42,20 @@ class ASN(BaseGDA):
     dropout : float, optional
         Dropout rate. Default: ``0.``.
     weight_decay : float, optional
-        Weight decay (L2 penalty). Default: ``0.``.
+        Weight decay (L2 penalty). Default: ``5e-4``.
     lambda_r : float, optional
         Hyperparameter for reconstruction loss. Default: ``1.``.
     lambda_d : float, optional
-        Hyperparameter for domain loss. Default: ``0.5.``.
+        Hyperparameter for domain loss. Default: ``0.1.``.
     lambda_f : float, optional
-        Hyperparameter for different loss. Default: ``0.0001``.
+        Hyperparameter for different loss. Default: ``0.001``.
     act : callable activation function or None, optional
         Activation function if not None.
         Default: ``torch.nn.functional.relu``.
     adv_dim : int, optional
-        Hidden dimension of adversarial module. Default: ``40``.
+        Hidden dimension of adversarial module. Default: ``10``.
     lr : float, optional
-        Learning rate. Default: ``0.001``.
+        Learning rate. Default: ``0.03``.
     epoch : int, optional
         Maximum number of training epoch. Default: ``200``.
     device : str, optional
@@ -67,7 +67,7 @@ class ASN(BaseGDA):
         Default: ``-1``.
     verbose : int, optional
         Verbosity mode. Range in [0, 3]. Larger value for printing out
-        more log information. Default: ``0``.
+        more log information. Default: ``2``.
     **kwargs
         Other parameters for the model.
     """

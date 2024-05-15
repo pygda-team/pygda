@@ -47,7 +47,7 @@ class ACDNE(BaseGDA):
         Activation function if not None.
         Default: ``torch.nn.functional.relu``.
     lr : float, optional
-        Learning rate. Default: ``0.001``.
+        Learning rate. Default: ``0.004``.
     epoch : int, optional
         Maximum number of training epoch. Default: ``100``.
     device : str, optional
@@ -59,7 +59,7 @@ class ACDNE(BaseGDA):
         Default: ``-1``.
     verbose : int, optional
         Verbosity mode. Range in [0, 3]. Larger value for printing out
-        more log information. Default: ``0``.
+        more log information. Default: ``2``.
     **kwargs
         Other parameters for the model.
     """

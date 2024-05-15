@@ -2,3 +2,4 @@
 test.py
 data/*
 !data/README.md
+benchmark/

@@ -30,7 +30,7 @@ class UDAGCN(BaseGDA):
     dropout : float, optional
         Dropout rate. Default: ``0.``.
     weight_decay : float, optional
-        Weight decay (L2 penalty). Default: ``0.``.
+        Weight decay (L2 penalty). Default: ``0.003``.
     act : callable activation function or None, optional
         Activation function if not None.
         Default: ``torch.nn.functional.relu``.
@@ -39,9 +39,9 @@ class UDAGCN(BaseGDA):
     adv_dim : int, optional
         Hidden dimension of adversarial module. Default: ``40``.
     lr : float, optional
-        Learning rate. Default: ``0.001``.
+        Learning rate. Default: ``0.004``.
     epoch : int, optional
-        Maximum number of training epoch. Default: ``100``.
+        Maximum number of training epoch. Default: ``200``.
     device : str, optional
         GPU or CPU. Default: ``cuda:0``.
     batch_size : int, optional
@@ -51,7 +51,7 @@ class UDAGCN(BaseGDA):
         Default: ``-1``.
     verbose : int, optional
         Verbosity mode. Range in [0, 3]. Larger value for printing out
-        more log information. Default: ``0``.
+        more log information. Default: ``2``.
     **kwargs
         Other parameters for the model.
     """

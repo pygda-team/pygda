@@ -15,7 +15,8 @@ def eval_roc_auc(label, score):
     roc_auc : float
         Average ROC-AUC score across different labels.
     """
-
+    label = label.cpu().numpy()
+    score = score.cpu().numpy()
     roc_auc = roc_auc_score(y_true=label, y_score=score)
 
     if roc_auc < 0.5:
