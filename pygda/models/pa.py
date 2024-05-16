@@ -69,7 +69,7 @@ class PairAlign(BaseGDA):
     backbone : string, optional
         The backbone of PairAlign. Default: ``GS``.
     weight_decay : float, optional
-        Weight decay (L2 penalty). Default: ``0.``.
+        Weight decay (L2 penalty). Default: ``0.0001``.
     act : callable activation function or None, optional
         Activation function if not None.
         Default: ``torch.nn.functional.relu``.
@@ -78,7 +78,7 @@ class PairAlign(BaseGDA):
     bn : bool, optional
         Batch normalization or not. Default: ``False``.
     epoch : int, optional
-        Maximum number of training epoch. Default: ``100``.
+        Maximum number of training epoch. Default: ``200``.
     device : str, optional
         GPU or CPU. Default: ``cuda:0``.
     batch_size : int, optional
@@ -88,7 +88,7 @@ class PairAlign(BaseGDA):
         Default: ``-1``.
     verbose : int, optional
         Verbosity mode. Range in [0, 3]. Larger value for printing out
-        more log information. Default: ``0``.
+        more log information. Default: ``2``.
     **kwargs
         Other parameters for the model.
     """

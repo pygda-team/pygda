@@ -39,7 +39,7 @@ class JHGDA(BaseGDA):
     classwise : bool, optional
         Classwise conditional shift or not. Default: ``True``.
     pool_ratio : float, optional
-        Graph pooling ratio. Default: ``0.5``.
+        Graph pooling ratio. Default: ``0.2``.
     g_mmd : float, optional
         Global mmd weight. Default: ``0.5``.
     c_mmd : float, optional
@@ -60,7 +60,7 @@ class JHGDA(BaseGDA):
         Activation function if not None.
         Default: ``torch.nn.functional.relu``.
     lr : float, optional
-        Learning rate. Default: ``0.001``.
+        Learning rate. Default: ``0.004``.
     epoch : int, optional
         Maximum number of training epoch. Default: ``200``.
     device : str, optional
@@ -72,7 +72,7 @@ class JHGDA(BaseGDA):
         Default: ``-1``.
     verbose : int, optional
         Verbosity mode. Range in [0, 3]. Larger value for printing out
-        more log information. Default: ``0``.
+        more log information. Default: ``2``.
     **kwargs
         Other parameters for the model.
     """

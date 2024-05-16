@@ -47,19 +47,19 @@ class DMGNN(BaseGDA):
         Activation function if not None.
         Default: ``torch.nn.functional.relu``.
     lr : float, optional
-        Learning rate. Default: ``0.001``.
+        Learning rate. Default: ``0.004``.
     epoch : int, optional
-        Maximum number of training epoch. Default: ``100``.
+        Maximum number of training epoch. Default: ``200``.
     device : str, optional
         GPU or CPU. Default: ``cuda:0``.
     batch_size : int, optional
-        Minibatch size, 0 for full batch training. Default: ``0``.
+        Minibatch size, 0 for full batch training. Default: ``100``.
     num_neigh : int, optional
         Number of neighbors in sampling, -1 for all neighbors.
         Default: ``-1``.
     verbose : int, optional
         Verbosity mode. Range in [0, 3]. Larger value for printing out
-        more log information. Default: ``0``.
+        more log information. Default: ``2``.
     **kwargs
         Other parameters for the model.
     """

@@ -33,18 +33,18 @@ class KBL(BaseGDA):
     dropout : float, optional
         Dropout rate. Default: ``0.``.
     weight_decay : float, optional
-        Weight decay (L2 penalty). Default: ``0.``.
+        Weight decay (L2 penalty). Default: ``0.005``.
     act : callable activation function or None, optional
         Activation function if not None.
         Default: ``torch.nn.functional.relu``.
     k_cross : int, optional
-        Number of edges for cross domains. Default: ``20``.
+        Number of edges for cross domains. Default: ``50``.
     k_within : int, optional
-        Number of edges for within domains. Default: ``6``.
+        Number of edges for within domains. Default: ``10``.
     lr : float, optional
         Learning rate. Default: ``0.001``.
     epoch : int, optional
-        Maximum number of training epoch. Default: ``100``.
+        Maximum number of training epoch. Default: ``200``.
     device : str, optional
         GPU or CPU. Default: ``cuda:0``.
     batch_size : int, optional
@@ -54,7 +54,7 @@ class KBL(BaseGDA):
         Default: ``-1``.
     verbose : int, optional
         Verbosity mode. Range in [0, 3]. Larger value for printing out
-        more log information. Default: ``0``.
+        more log information. Default: ``2``.
     **kwargs
         Other parameters for the model.
     """

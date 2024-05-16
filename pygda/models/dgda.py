@@ -32,7 +32,7 @@ class DGDA(BaseGDA):
     dropout : float, optional
         Dropout rate. Default: ``0.``.
     weight_decay : float, optional
-        Weight decay (L2 penalty). Default: ``0.``.
+        Weight decay (L2 penalty). Default: ``0.0005``.
     act : callable activation function or None, optional
         Activation function if not None.
         Default: ``torch.nn.functional.relu``.
@@ -43,7 +43,7 @@ class DGDA(BaseGDA):
     y_dim : int, optional
         Dimension of the semantic latent variables. Default: ``256``.
     m_dim : int, optional
-        Dimension of the semantic latent variables. Default: ``256``.
+        Dimension of the random latent variables. Default: ``128``.
     recons_w : float, optional
         Trade-off weight for reconstruction loss. Default: ``1.0``.
     beta : float, optional
@@ -69,7 +69,7 @@ class DGDA(BaseGDA):
         Default: ``-1``.
     verbose : int, optional
         Verbosity mode. Range in [0, 3]. Larger value for printing out
-        more log information. Default: ``0``.
+        more log information. Default: ``2``.
     **kwargs
         Other parameters for the model.
     """
