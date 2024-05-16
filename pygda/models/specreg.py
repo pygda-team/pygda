@@ -32,7 +32,7 @@ class SpecReg(BaseGDA):
     dropout : float, optional
         Dropout rate. Default: ``0.``.
     weight_decay : float, optional
-        Weight decay (L2 penalty). Default: ``0.``.
+        Weight decay (L2 penalty). Default: ``0.003``.
     act : callable activation function or None, optional
         Activation function if not None.
         Default: ``torch.nn.functional.relu``.
@@ -42,15 +42,15 @@ class SpecReg(BaseGDA):
         Hidden dimension of adversarial module. Default: ``40``.
     reg_mode : bool, optional
         Use reg mode or adv mode. Default: ``True``.
-    gamma_adv : int, optional
-        Trade off parameter for adv. Default: ``0.01``.
-    thr_smooth : int, optional
+    gamma_adv : float, optional
+        Trade off parameter for adv. Default: ``0.1``.
+    thr_smooth : float, optional
         Spectral smoothness threshold. Default: ``-1``.
-    gamma_smooth : int, optional
+    gamma_smooth : float, optional
         Trade off parameter for spectral smoothness. Default: ``0.01``.
-    thr_mfr : int, optional
+    thr_mfr : float, optional
         Maximum Frequency Response threshold. Default: ``-1``.
-    gamma_mfr : int, optional
+    gamma_mfr : float, optional
         Trade off parameter for Maximum Frequency Response. Default: ``0.01``.
     lr : float, optional
         Learning rate. Default: ``0.001``.
@@ -65,7 +65,7 @@ class SpecReg(BaseGDA):
         Default: ``-1``.
     verbose : int, optional
         Verbosity mode. Range in [0, 3]. Larger value for printing out
-        more log information. Default: ``0``.
+        more log information. Default: ``2``.
     **kwargs
         Other parameters for the model.
     """
