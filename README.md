@@ -26,6 +26,7 @@ logits, labels = model.predict(target_data)
 Note: PyGDA depends on [PyTorch](https://pytorch.org/), [PyG](https://pytorch-geometric.readthedocs.io/en/latest/), [PyTorch Sparse](https://github.com/rusty1s/pytorch_sparse) and [Pytorch Scatter](https://github.com/rusty1s/pytorch_scatter). PyGDA does not automatically install these libraries for you. Please install them separately in order to run PyGDA successfully.
 
 **Required Dependencies:**
+
 * torch>=1.13.1
 * torch_geometric>=2.4.0
 * torch_sparse>=0.6.15
@@ -37,10 +38,12 @@ Note: PyGDA depends on [PyTorch](https://pytorch.org/), [PyG](https://pytorch-ge
 * cvxpy
 * tqdm
 
-**Installing with pip**
+**Installing with pip:**
 ```
 pip install pygda
 ```
+
+or 
 
 **Installation for local development:**
 ```
