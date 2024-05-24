@@ -1,5 +1,6 @@
 import argparse
 import os.path as osp
+import numpy as np
 
 from pygda.datasets import CitationDataset
 
