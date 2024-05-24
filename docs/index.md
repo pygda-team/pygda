@@ -26,25 +26,31 @@ logits, labels = model.predict(target_data)
 * **Seamlessly integrated data processing with PyG, ensuring full compatibility with PyG data structures.**
 
 ## Installation
-Note: PyGDA depends on [PyTorch](https://pytorch.org/), [PyG](https://pytorch-geometric.readthedocs.io/en/latest/), and [PyTorch Sparse](https://github.com/rusty1s/pytorch_sparse). PyGDA does not automatically install these libraries for you. Please use the provided links above to install them separately in order to run PyGDA successfully.
+Note: PyGDA depends on [PyTorch](https://pytorch.org/), [PyG](https://pytorch-geometric.readthedocs.io/en/latest/), [PyTorch Sparse](https://github.com/rusty1s/pytorch_sparse) and [Pytorch Scatter](https://github.com/rusty1s/pytorch_scatter). PyGDA does not automatically install these libraries for you. Please install them separately in order to run PyGDA successfully.
 
+**Required Dependencies:**
 * torch>=1.13.1
 * torch_geometric>=2.4.0
 * torch_sparse>=0.6.15
+* torch_scatter>=2.1.0
+* python3
+* scipy
+* sklearn
+* numpy
+* cvxpy
+* tqdm
+
+**Installing with pip**
+```
+pip install pygda
+```
 
 **Installation for local development:**
 ```
 git clone https://github.com/pygda-team/pygda
 cd pygda
+pip install -e .
 ```
-
-**Required Dependencies:**
-
-* python
-* scipy
-* sklearn
-* numpy
-* cvxpy
 
 ## Quick Start
 
