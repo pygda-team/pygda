@@ -8,16 +8,21 @@ from .cached_gcn_conv import CachedGCNConv
 
 
 class PPMIConv(CachedGCNConv):
-
-    def __init__(self, in_channels, out_channels,
-                 weight=None, bias=None, improved=False, use_bias=True,
-                 path_len=5,
-                 **kwargs):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        weight=None,
+        bias=None,
+        improved=False,
+        use_bias=True,
+        path_len=5,
+        **kwargs
+        ):
         super().__init__(in_channels, out_channels, weight, bias, improved, use_bias, **kwargs)
         self.path_len = path_len
 
-    def norm(self, edge_index, num_nodes, edge_weight=None, improved=False,
-             dtype=None):
+    def norm(self, edge_index, num_nodes, edge_weight=None, improved=False, dtype=None):
 
         adj_dict = {}
 
@@ -83,7 +88,7 @@ class PPMIConv(CachedGCNConv):
 
         for a, normed_walk_counter in normed_walk_counters.items():
             for b, prob in normed_walk_counter.items():
-                ppmi = np.log(prob / prob_sums[b] * len(prob_sums) / self.path_len)
+                ppmi = max(np.log(prob / prob_sums[b] * len(prob_sums) / self.path_len), 0)
                 ppmis[(a, b)] = ppmi
 
         new_edge_index = []
@@ -95,13 +100,13 @@ class PPMIConv(CachedGCNConv):
         edge_index = torch.tensor(new_edge_index).t().to(gpu_device)
         edge_weight = torch.tensor(edge_weight).to(gpu_device)
 
-
         fill_value = 1 if not improved else 2
         edge_index, edge_weight = add_remaining_self_loops(
             edge_index, edge_weight, fill_value, num_nodes)
 
         row, col = edge_index
         deg = scatter_add(edge_weight, row, dim=0, dim_size=num_nodes)
+
         deg_inv_sqrt = deg.pow(-0.5)
         deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
 

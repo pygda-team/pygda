@@ -42,7 +42,8 @@ class CachedGCNConv(MessagePassing):
                  weight=None,
                  bias=None,
                  improved=False,
-                 use_bias=True, **kwargs):
+                 use_bias=True,
+                 **kwargs):
         super().__init__(aggr='add', **kwargs)
 
         self.in_channels = in_channels
@@ -50,20 +51,11 @@ class CachedGCNConv(MessagePassing):
         self.improved = improved
         self.cache_dict = {}
 
-        # self.weight = Parameter(torch.Tensor(in_channels, out_channels))
-        #
-        # if bias:
-        #     self.bias = Parameter(torch.Tensor(out_channels))
-        # else:
-        #     self.register_parameter('bias', None)
-
-
         if weight is None:
             self.weight = Parameter(torch.Tensor(in_channels, out_channels).to(torch.float32))
             glorot(self.weight)
         else:
             self.weight = weight
-            # print("use shared weight")
 
         if bias is None:
             if use_bias:
@@ -73,22 +65,11 @@ class CachedGCNConv(MessagePassing):
             zeros(self.bias)
         else:
             self.bias = bias
-            # print("use shared bias")
-
-        # self.reset_parameters()
-
-    # def reset_parameters(self):
-    #     glorot(self.weight)
-    #     zeros(self.bias)
-        # self.cached_result = None
-        # self.cached_num_edges = None
 
     @staticmethod
-    def norm(edge_index, num_nodes, edge_weight=None, improved=False,
-             dtype=None):
+    def norm(edge_index, num_nodes, edge_weight=None, improved=False, dtype=None):
         if edge_weight is None:
-            edge_weight = torch.ones((edge_index.size(1), ), dtype=dtype,
-                                     device=edge_index.device)
+            edge_weight = torch.ones((edge_index.size(1), ), dtype=dtype, device=edge_index.device)
 
         fill_value = 1 if not improved else 2
         edge_index, edge_weight = add_remaining_self_loops(
@@ -103,16 +84,13 @@ class CachedGCNConv(MessagePassing):
 
     def forward(self, x, edge_index, cache_name="default_cache", edge_weight=None):
         """"""
-
         x = torch.matmul(x, self.weight)
 
         if not cache_name in self.cache_dict:
-            edge_index, norm = self.norm(edge_index, x.size(0), edge_weight,
-                                         self.improved, x.dtype)
+            edge_index, norm = self.norm(edge_index, x.size(0), edge_weight, self.improved, x.dtype)
             self.cache_dict[cache_name] = edge_index, norm
         else:
             edge_index, norm = self.cache_dict[cache_name]
-
 
         return self.propagate(edge_index, x=x, norm=norm)
 
@@ -125,5 +103,4 @@ class CachedGCNConv(MessagePassing):
         return aggr_out
 
     def __repr__(self):
-        return '{}({}, {})'.format(self.__class__.__name__, self.in_channels,
-                                   self.out_channels)
+        return '{}({}, {})'.format(self.__class__.__name__, self.in_channels, self.out_channels)
