@@ -4,7 +4,7 @@ build-backend="flit_core.buildapi"
 
 [project]
 name = "pygda"
-version = "0.0.2"
+dynamic = ["version"]
 description = "A Python library for Graph Domain Adaptation"
 authors=[
     {name="pygda-team"},
