@@ -3,8 +3,7 @@
 [![PyPI version](https://badge.fury.io/py/pygda.svg)](https://badge.fury.io/py/pygda)
 [![Documentation Status](https://readthedocs.org/projects/pygda/badge/?version=latest)](https://pygda.readthedocs.io/en/latest/?badge=latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/dwyl/esta/issues)
-[![HitCount](https://hits.dwyl.com/pygda-team/pygda.svg?style=flat-square)](http://hits.dwyl.com/pygda-team/pygda)
+[![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/pygda-team/pygda/issues)
 
 PyGDA is a **Python library** for **Graph Domain Adaptation** built upon [PyTorch](https://pytorch.org/) and [PyG](https://pytorch-geometric.readthedocs.io/en/latest/) to easily train graph domain adaptation models in a [sklearn](https://scikit-learn.org/stable/) style. PyGDA includes **15+** graph domain adaptation models. See examples with PyGDA below!
 
