@@ -39,7 +39,6 @@ jobs:
     - name: Run pre-upload script
       run: |
         echo "PYPI_API_TOKEN=${{ secrets.PYPI_API_TOKEN }}" 
-        python .github/scripts/pre_upload.py
     - name: Build package
       run: |
         python3 -m build
