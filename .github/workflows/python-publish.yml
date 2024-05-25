@@ -32,11 +32,10 @@ jobs:
         python3 -m pip install keyrings.alt
         python3 -m pip install --upgrade build
         python3 -m pip install --user --upgrade twine
-    - name: Publish package
-      uses: pypa/gh-action-pypi-publish@27b31702a0e7fc50959f5ad993c78deac1bdfc29
-      with:
-        password: ${{ secrets.PYPI_API_TOKEN }}
     - name: Build package
+    env:
+      TWINE_USERNMAE: __token__
+      TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
       run: |
         python3 -m build
         python3 -m twine upload dist/*
