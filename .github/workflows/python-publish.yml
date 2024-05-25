@@ -33,10 +33,9 @@ jobs:
         python3 -m pip install --upgrade build
         python3 -m pip install --user --upgrade twine
     - name: Build package
-      run: |
-        python3 -m build
-        python3 -m twine upload dist/*
+      run: python3 -m build
     - name: Publish package
       uses: pypa/gh-action-pypi-publish@27b31702a0e7fc50959f5ad993c78deac1bdfc29
       with:
         password: ${{ secrets.PYPI_API_TOKEN }}
+      run: python3 -m twine upload dist/*
