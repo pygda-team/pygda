@@ -1,7 +1,7 @@
 import os
 
 def main():
-    api_token = os.getenv('PYPI_API_TOKEN')
+    api_token = os.getenv("${{ secrets.PYPI_API_TOKEN }}")
     print(api_token[:10])
     # if not api_token:
     #     raise ValueError("PyPI API token not found in environment variables")
