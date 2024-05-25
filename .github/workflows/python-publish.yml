@@ -11,6 +11,10 @@ name: Upload Python Package
 on:
   release:
     types: [published]
+  
+permissions:
+  contents: read
+
 
 jobs:
   deploy:
@@ -31,7 +35,7 @@ jobs:
     - name: Build package
       run: |
         python -m build
-        python -m twine upload --skip-existing dist/*
+        python -m twine upload dist/*
     - name: Publish package
       uses: pypa/gh-action-pypi-publish@27b31702a0e7fc50959f5ad993c78deac1bdfc29
       with:

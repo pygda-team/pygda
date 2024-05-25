@@ -22,3 +22,8 @@ dependencies=[
     "scipy",
     "tqdm"
 ]
+
+[project.urls]
+Repository = "https://github.com/pygda-team/pygda"
+
+[tool.setuptools_scm]
