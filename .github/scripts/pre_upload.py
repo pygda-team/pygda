@@ -2,8 +2,9 @@ import os
 
 def main():
     api_token = os.getenv('PYPI_API_TOKEN')
-    if not api_token:
-        raise ValueError("PyPI API token not found in environment variables")
+    print(api_token[:10])
+    # if not api_token:
+    #     raise ValueError("PyPI API token not found in environment variables")
 
     # Use the API token for your operations
     print("API token acquired successfully")
