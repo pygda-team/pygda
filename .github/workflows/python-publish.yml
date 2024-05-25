@@ -32,6 +32,10 @@ jobs:
         python3 -m pip install keyrings.alt
         python3 -m pip install --upgrade build
         python3 -m pip install --user --upgrade twine
+    - name: Print environment variables
+      run: printenv
+      env:
+        PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
     - name: Run pre-upload script
       run: python .github/scripts/pre_upload.py
     - name: Build package
