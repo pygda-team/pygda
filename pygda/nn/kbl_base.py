@@ -282,6 +282,24 @@ class Similar(torch.nn.Module):
         alpha = torch.sigmoid(alpha)
 
         return alpha
+    
+    def similarity_cross_domain_batch(self, x_src, x_tar, idx1, idx2):
+        z_src = self.lin_self(x_src)
+        z_tar = self.lin_self(x_tar)
+        batch_size = 100
+        batch_alpha = None
+        for i in range(0, len(idx1), batch_size):
+            end = min(i + batch_size, len(idx1))
+            idx1_batch = idx1[i:end]
+            z_src_batch = z_src[idx1_batch]
+            alpha = torch.nn.CosineSimilarity(dim=-1)((z_src_batch + self.biasatt(z_src_batch)).unsqueeze(1), z_tar[idx2] + self.biasatt(z_tar[idx2]))
+            if i == 0:
+                batch_alpha = alpha
+            else:
+                batch_alpha = torch.cat((batch_alpha, alpha), dim=0)
+        alpha = torch.sigmoid(batch_alpha)
+
+        return alpha
 
     def forward_cross_domain(self, x_src, x_tar, idx1, idx2):
         z_src, z_tar = x_src, x_tar
@@ -293,7 +311,7 @@ class Similar(torch.nn.Module):
             log_probs_clf_src = F.log_softmax(logits_src, dim=-1)
             log_probs_clf_tar = F.log_softmax(logits_tar, dim=-1)
 
-        alpha = self.similarity_cross_domain(z_src, z_tar, idx1, idx2)
+        alpha = self.similarity_cross_domain_batch(z_src, z_tar, idx1, idx2)
 
         return alpha.unsqueeze(-1), log_probs_clf_src, log_probs_clf_tar
 

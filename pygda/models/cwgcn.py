@@ -146,7 +146,7 @@ class CWGCN(BaseGDA):
 
         print('Step 1, train source data...')
 
-        for epoch in range(self.epoch):
+        for epoch in range(self.epoch * 2):
             epoch_loss = 0
             epoch_source_logits = None
             epoch_source_labels = None

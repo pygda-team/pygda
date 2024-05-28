@@ -31,8 +31,8 @@ class DANE(BaseGDA):
         Hidden dimension of model.
     num_classes : int
         Total number of classes.
-    num_layers : int, optional
-        Total number of layers in model. Default: ``2``.
+    num_layers : int
+        Total number of layers in model.
     dropout : float, optional
         Dropout rate. Default: ``0.``.
     gnn : string, optional
@@ -71,7 +71,7 @@ class DANE(BaseGDA):
         in_dim,
         hid_dim,
         num_classes,
-        num_layers=2,
+        num_layers,
         dropout=0.,
         gnn='gcn',
         k=5,
