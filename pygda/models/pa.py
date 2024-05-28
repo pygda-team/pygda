@@ -14,7 +14,7 @@ from torch_geometric.loader import NeighborLoader
 from torch_geometric.utils import to_dense_adj
 
 from . import BaseGDA
-from ..nn import ReweightGNN, GradReverse, MixupBase
+from ..nn import ReweightGNN
 from ..utils import logger, MMD
 from ..metrics import eval_macro_f1, eval_micro_f1
 
@@ -313,17 +313,17 @@ class PairAlign(BaseGDA):
         label = label.type(torch.int64)
         y_onehot = F.one_hot(label).float().to(self.device)
         p_y = torch.sum(y_onehot, 0) / len(y_onehot)
-        class_weights = torch.tensor(1.0 / p_y, dtype=torch.float, requires_grad=False).to(self.device)
+        class_weights = (1.0 / p_y.clone().detach()).to(self.device)
         if weight_src:
             loss = nn.CrossEntropyLoss(reduction='none', weight=class_weights)
         else:
             loss = nn.CrossEntropyLoss()
         weight = torch.mm(y_onehot, label_weight.view(-1, 1).float())
-        #loss = nn.CrossEntropyLoss(weight= label_weight)
         
         return torch.mean(loss(pred, label).view(-1, 1) * weight)/ class_num
     
     def calc_true_lw(self, src_graph, tgt_graph):
+        print('calc true lw...')
         label_onehot_src = F.one_hot(src_graph.y)
         label_onehot_tgt = F.one_hot(tgt_graph.y)
         num_nodes_src = torch.sum(label_onehot_src, 0)
@@ -336,10 +336,9 @@ class PairAlign(BaseGDA):
         src_graph.true_lw = label_weight.cpu().detach().numpy()
 
         src_graph.lw = np.ones_like(src_graph.true_lw)
-        
-        print("true lw: " + str(src_graph.true_lw))
-    
+            
     def calc_true_beta(self, src_graph, tgt_graph):
+        print('calc true beta...')
         num_classes = self.num_classes
         src_num_edges = src_graph.edge_index.shape[1]
         src_edge_class = np.zeros((src_num_edges, num_classes, num_classes))
@@ -370,23 +369,15 @@ class PairAlign(BaseGDA):
         beta = np.nan_to_num(beta, nan = 1)
     
         src_graph.true_beta = beta
-        print("true beta: " + str(beta))
-        print("max: " + str(np.max(beta)) + "; min: " + str(np.min(beta)))
     
     def calc_true_ew(self, src_graph, tgt_graph):
+        print('calc true ew...')
         src_edge_prob, tgt_edge_prob = self.cal_edge_prob_sep(src_graph, tgt_graph)
 
-        #edge_weight = tgt_edge_prob / src_edge_prob
         edge_weight = (tgt_edge_prob + self.gamma_reg) / (src_edge_prob + self.gamma_reg)
-        print(edge_weight.min())
-        print(edge_weight.max())
-
-        # edge_weight[edge_weight == float('inf')] = 1
-        # edge_weight = torch.nan_to_num(edge_weight, nan = 1)
     
         src_graph.true_ew = edge_weight.cpu().detach().numpy()
         src_graph.ew = np.ones_like(src_graph.true_ew)
-        print("true ew: " + str(src_graph.true_ew))
     
     def cal_edge_prob_sep(self, src_graph, tgt_graph):
         src_adj = to_dense_adj(src_graph.edge_index).squeeze().T.detach().cpu().numpy()
@@ -404,14 +395,9 @@ class PairAlign(BaseGDA):
 
         src_node_num = src_label_one_hot.sum(axis=0).T * num_nodes_src
         tgt_node_sum = tgt_label_one_hot.sum(axis=0).T * num_nodes_tgt
-        #print(tgt_pred_node_sum)
-        #print(tgt_node_sum)
 
         src_num_edge = (src_label_one_hot.T * src_adj * src_label_one_hot)
         tgt_num_edge = (tgt_label_one_hot.T * tgt_adj * tgt_label_one_hot)
-        #print(src_num_edge)
-        #print(tgt_pred_num_edge)
-        #print(tgt_true_num_edge)
 
         src_edge_prob = src_num_edge / src_node_num
         tgt_edge_prob = tgt_num_edge / tgt_node_sum
@@ -439,9 +425,6 @@ class PairAlign(BaseGDA):
             src_data.ew = edge_rw
             ew_diff = np.abs(edge_rw - src_data.true_ew.reshape(num_classes, num_classes)).sum()
 
-            # print("ew: "+ str(edge_rw))
-            # print("max: " + str(np.max(edge_rw)) + "; min: " + str(np.min(edge_rw)))
-    
         return 
 
     def calc_edge_rw_pseudo(self, src_graph, tgt_graph, yhat_src, yhat_tgt):
@@ -474,22 +457,17 @@ class PairAlign(BaseGDA):
     
         w = self.LS_optimization(C_hat, muhat_tgt, mu_src, self.ls_lambda)
         w = np.reshape(w, (num_classes, num_classes))
-        # beta = true_beta
-        print("w: "+ str(np.reshape(w, (num_classes, num_classes))))
-        print("max: " + str(np.max(w)) + "; min: " + str(np.min(w)))
+
         beta_diff = np.abs(w - true_beta.reshape(num_classes, num_classes)).sum()
 
         gamma, p_ei_tgt = self.calc_ratio_weight(src_graph, w, self.gamma_reg)
-        print("gamma: "+ str(gamma))
         edge_rw = gamma
         edge_rw[edge_rw == float('inf')] = 1
         edge_rw = np.nan_to_num(edge_rw, nan = 1)
-        print("calc_ew: " + str(edge_rw))
-        print("max: " + str(np.max(edge_rw)) + "; min: " + str(np.min(edge_rw)))
+
         edge_weight = np.matmul(self.src_edge_class.reshape(src_num_edges, num_classes**2), edge_rw.reshape(num_classes**2))
         src_graph.edge_weight = torch.from_numpy(edge_weight).float().to(self.device)
         src_graph.ew = edge_rw
-        #return edge_weight
 
         diff = np.abs(edge_rw - true_ew.reshape(num_classes, num_classes)).sum()
         
@@ -501,7 +479,6 @@ class PairAlign(BaseGDA):
         cov = cov.cpu().detach().numpy().astype(np.double)
 
         print("rank of Cov in edge: " + str(np.linalg.matrix_rank(cov)))
-        print("condition number of Cov in edge: " + str(np.linalg.cond(cov)))
         x0 = np.ones(cov.shape[1])  
         x = cp.Variable(cov.shape[1])
 
@@ -512,9 +489,7 @@ class PairAlign(BaseGDA):
         problem.solve(solver=cp.SCS)
 
         x_value = x.value
-   
-        print("edge_weight: "+ str(x_value))
-        
+           
         return x_value
     
     def calc_ratio_weight(self, src_graph, kmm_weight, gamma_reg):
@@ -528,11 +503,7 @@ class PairAlign(BaseGDA):
 
         p_ei_src_reg = np.sum(p_eij_src_reg.reshape(num_classes, num_classes), axis=1)
         p_ei_tgt_reg = np.sum(p_eij_tgt_reg.reshape(num_classes, num_classes), axis=1)
-        # print(p_ei_src)
-        # print(p_ei_tgt)
-        # print("cond_ratio:")
-        # print((p_eij_src.reshape(src_graph.num_classes, src_graph.num_classes).T / p_ei_src).T)
-        # print((p_eij_tgt.reshape(src_graph.num_classes, src_graph.num_classes).T / p_ei_tgt).T)
+
         gamma = ((p_eij_tgt_reg.reshape(num_classes, num_classes).T / p_ei_tgt_reg).T) / ((p_eij_src_reg.reshape(num_classes, num_classes).T / p_ei_src_reg).T)
 
         return gamma, p_ei_tgt_reg
@@ -543,10 +514,6 @@ class PairAlign(BaseGDA):
         y_src = torch.mean(y_src_onehot, dim=0)
         y_src_pred = F.softmax(pred_src,dim=1)
         cov_mat = torch.mm(y_src_pred.T, y_src_onehot) / src_data.x.shape[0]
-    
-        # print("cov mat rank: "  + str(torch.linalg.matrix_rank(cov_mat)))
-        # print("cov mat condition number: " + str(torch.linalg.cond(cov_mat)))
-        # print()
 
         label_weight = self.calc_label_rw(y_src, yhat_tgt, cov_mat, self.lw_lambda)
 
@@ -558,7 +525,6 @@ class PairAlign(BaseGDA):
         cov = cov.cpu().detach().numpy().astype(np.double)
     
         x0 = np.ones(cov.shape[1])
-        #lambda_reg = 0.005  
         x = cp.Variable(cov.shape[1])
 
         objective = cp.Minimize(cp.norm(cov @ x - y_hat_tgt, 2)**2 + lambda_reg * cp.norm(x - x0, 2)**2)
@@ -568,6 +534,5 @@ class PairAlign(BaseGDA):
         problem.solve(solver=cp.SCS)
 
         x_value = x.value
-        # print("label_weight: "+ str(x_value))
         
         return x_value

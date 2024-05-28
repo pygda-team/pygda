@@ -82,7 +82,7 @@ class UDAGCNBase(nn.Module):
         self.encoder = GNN(in_dim=in_dim, hid_dim=hid_dim, gnn_type='gcn', act=act, num_layers=num_layers)
         
         if self.ppmi:
-            self.ppmi_encoder = GNN(in_dim=in_dim, hid_dim=hid_dim, base_model=self.encoder, gnn_type='ppmi', path_len=10) 
+            self.ppmi_encoder = GNN(in_dim=in_dim, hid_dim=hid_dim, base_model=self.encoder, num_layers=num_layers, gnn_type='ppmi', path_len=10) 
         
         self.cls_model = nn.Sequential(nn.Linear(hid_dim, num_classes))
 
