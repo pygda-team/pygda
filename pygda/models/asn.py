@@ -20,6 +20,8 @@ from ..nn import GradReverse
 from ..utils import logger
 from ..metrics import eval_macro_f1, eval_micro_f1
 
+import warnings
+warnings.filterwarnings('ignore', '.*Sparse CSR tensor support is in beta state.*')
 
 class ASN(BaseGDA):
     """
@@ -297,7 +299,7 @@ class ASN(BaseGDA):
         values = torch.from_numpy(sparse_mx.data)
         shape = torch.Size(sparse_mx.shape)
         
-        return torch.sparse.FloatTensor(indices, values, shape).coalesce()
+        return torch.sparse_coo_tensor(indices, values, shape).coalesce().to_sparse_csr()
 
     def agg_tran_prob_mat(self, g, step):
         """aggregated K-step transition probality"""
