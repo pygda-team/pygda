@@ -13,7 +13,7 @@ from torch_geometric.loader import NeighborLoader
 from torch_geometric.utils import to_dense_adj
 
 from . import BaseGDA
-from ..nn import GNNBase, GradReverse, MixupBase
+from ..nn import ReweightGNN, GradReverse, MixupBase
 from ..utils import logger, MMD
 from ..metrics import eval_macro_f1, eval_micro_f1
 
@@ -33,10 +33,26 @@ class StruRW(BaseGDA):
         Total number of classes.
     num_layers : int, optional
         Total number of layers in model. Default: ``2``.
+    cls_dim : int, optional
+        Hidden dimension for classification layer. Default: ``128``.
+    cls_layers : int, optional
+        Total number of cls layers in model. Default: ``2``.
     dropout : float, optional
         Dropout rate. Default: ``0.``.
     gnn : string, optional
-        GNN backbone. Default: ``gcn``.
+        GNN backbone. Default: ``GS``.
+    pooling : string, optional
+        Aggregation in gnn. Default: ``mean``.
+    bn : bool, optional
+        Batch normalization or not. Default: ``False``.
+    reweight : bool, optional
+        Reweight the edge in source graph or not. Default: ``True``.
+    pseudo : bool, optional
+        Use pseudo labels in target graph or not. Default: ``True``.
+    ew_start : int, optional
+        Starting epoch for edge reweighting. Default: ``100``.
+    ew_freq : int, optional
+        Frequency for edge reweighting. Default: ``20``.
     lamb : float, optional
         Trade-off parameter for edge reweight. Default: ``0.8``.
     mode : string, optional
@@ -70,11 +86,19 @@ class StruRW(BaseGDA):
         hid_dim,
         num_classes,
         num_layers=2,
+        cls_dim=128,
+        cls_layers=2,
         dropout=0.,
-        gnn='gcn',
+        gnn='GS',
+        pooling='mean',
+        reweight=True,
+        pseudo=True,
+        ew_start=100,
+        ew_freq=20,
         lamb=0.8,
         mode='erm',
         act=F.relu,
+        bn=False,
         weight_decay=0.0001,
         lr=0.05,
         epoch=100,
@@ -100,11 +124,19 @@ class StruRW(BaseGDA):
             verbose=verbose,
             **kwargs)
 
-        assert mode in ['erm', 'mixup'], 'unsupport training mode'
+        assert mode in ['erm', 'mixup', 'mmd', 'adv'], 'unsupport training mode'
         
         self.gnn=gnn
         self.lamb=lamb
         self.mode=mode
+        self.bn=bn
+        self.pooling=pooling
+        self.cls_dim=cls_dim
+        self.cls_layers=cls_layers
+        self.reweight=reweight
+        self.ew_freq=ew_freq
+        self.ew_start=ew_start
+        self.pseudo=pseudo
 
     def init_model(self, **kwargs):
 
@@ -119,49 +151,35 @@ class StruRW(BaseGDA):
                 **kwargs
                 ).to(self.device)
         else:
-            return GNNBase(
-                in_dim=self.in_dim,
-                hid_dim=self.hid_dim,
-                num_classes=self.num_classes,
-                num_layers=self.num_layers,
+            return ReweightGNN(
+                input_dim=self.in_dim,
+                gnn_dim=self.hid_dim,
+                output_dim=self.num_classes,
+                cls_dim=self.cls_dim,
+                gnn_layers=self.num_layers,
+                cls_layers=self.cls_layers,
+                backbone=self.gnn,
+                pooling=self.pooling,
                 dropout=self.dropout,
-                gnn=self.gnn,
+                bn=self.bn,
+                rw_lmda=self.lamb,
                 **kwargs
                 ).to(self.device)
 
-    def forward_model(self, source_data, target_data, alpha):
-        target_feat = self.gnn.feat_bottleneck(target_data.x, target_data.edge_index)
-        target_logits = self.gnn.feat_classifier(target_feat, target_data.edge_index)
+    def forward_model(self, source_data, target_data, alpha, epoch):
+        target_feat, target_logits = self.gnn.forward(target_data, target_data.x)
         target_prob = F.softmax(target_logits, dim=1)
         target_pred = torch.max(target_prob, dim=1)[1]
 
-        src_edge_prob, tgt_edge_prob, tgt_true_edge_prob = self.cal_edge_prob_sep(source_data, target_data, target_pred)
-
-        reweight_matrix = torch.div(tgt_edge_prob, src_edge_prob)
-        reweight_matrix[torch.isinf(reweight_matrix)] = 1
-        reweight_matrix[torch.isnan(reweight_matrix)] = 1
-
-        num_nodes = source_data.x.shape[0] + target_data.x.shape[0]
-        label_pred = torch.cat((source_data.y, target_pred))
-        graph_label_one_hot = sp.csr_matrix(
-            (np.ones(num_nodes), (np.arange(num_nodes), label_pred.cpu().numpy())),
-            shape=(num_nodes, self.num_classes))
-        src_label_one_hot = sp.csr_matrix(
-            (np.ones(source_data.x.shape[0]), (np.arange(source_data.x.shape[0]), source_data.y.cpu().numpy())),
-            shape=(source_data.x.shape[0], self.num_classes))
+        if self.reweight and (epoch + 1) >= self.ew_start:
+            if self.pseudo:
+                if (epoch + 1) % self.ew_freq == 0:
+                    self.cal_reweight(source_data, target_data, target_pred)
+            else:
+                if epoch == self.ew_start - 1:
+                    self.cal_reweight(source_data, target_data, target_pred)
         
-        edge_weight = torch.ones(source_data.edge_index.shape[1]).to(self.device)
-        for i in range(self.num_classes):
-            for j in range(self.num_classes):
-                idx = np.intersect1d(
-                    np.where(np.in1d(source_data.edge_index[0].cpu().numpy(), graph_label_one_hot.getcol(j).nonzero()[0]))[0],
-                    np.where(np.in1d(source_data.edge_index[1].cpu().numpy(), src_label_one_hot.getcol(i).nonzero()[0]))[0])
-                edge_weight[idx] = reweight_matrix[i][j].item()
-        
-        edge_weight = (1 - self.lamb) * 1 + self.lamb * edge_weight
-
-        source_feat = self.gnn.feat_bottleneck(source_data.x, source_data.edge_index, edge_weight)
-        source_logits = self.gnn.feat_classifier(source_feat, source_data.edge_index, edge_weight)
+        source_feat, source_logits = self.gnn.forward(source_data, source_data.x)
         source_prob = F.softmax(source_logits, dim=1)
         source_pred = torch.max(source_prob, dim=1)[1]
 
@@ -185,10 +203,7 @@ class StruRW(BaseGDA):
 
         return loss, source_logits, target_logits
 
-    def forward_model_mixup(self, source_data, target_data):
-        source_data.edge_weight = torch.ones(source_data.edge_index.shape[1]).to(self.device)
-        target_data.edge_weight = torch.ones(target_data.edge_index.shape[1]).to(self.device)
-
+    def forward_model_mixup(self, source_data, target_data, epoch):
         target_feat = self.gnn.feat_bottleneck(
             target_data.x,
             target_data.edge_index,
@@ -201,31 +216,14 @@ class StruRW(BaseGDA):
         target_prob = F.softmax(target_logits, dim=1)
         target_pred = torch.max(target_prob, dim=1)[1]
 
-        src_edge_prob, tgt_edge_prob, tgt_true_edge_prob = self.cal_edge_prob_sep(source_data, target_data, target_pred)
-
-        reweight_matrix = torch.div(tgt_edge_prob, src_edge_prob)
-        reweight_matrix[torch.isinf(reweight_matrix)] = 1
-        reweight_matrix[torch.isnan(reweight_matrix)] = 1
-
-        num_nodes = source_data.x.shape[0] + target_data.x.shape[0]
-        label_pred = torch.cat((source_data.y, target_pred))
-        graph_label_one_hot = sp.csr_matrix(
-            (np.ones(num_nodes), (np.arange(num_nodes), label_pred.cpu().numpy())),
-            shape=(num_nodes, self.num_classes))
-        src_label_one_hot = sp.csr_matrix(
-            (np.ones(source_data.x.shape[0]), (np.arange(source_data.x.shape[0]), source_data.y.cpu().numpy())),
-            shape=(source_data.x.shape[0], self.num_classes))
+        if self.reweight and (epoch + 1) >= self.ew_start:
+            if self.pseudo:
+                if (epoch + 1) % self.ew_freq == 0:
+                    self.cal_reweight(source_data, target_data, target_pred)
+            else:
+                if epoch == self.ew_start - 1:
+                    self.cal_reweight(source_data, target_data, target_pred)
         
-        edge_weight = torch.ones(source_data.edge_index.shape[1]).to(self.device)
-        for i in range(self.num_classes):
-            for j in range(self.num_classes):
-                idx = np.intersect1d(
-                    np.where(np.in1d(source_data.edge_index[0].cpu().numpy(), graph_label_one_hot.getcol(j).nonzero()[0]))[0],
-                    np.where(np.in1d(source_data.edge_index[1].cpu().numpy(), src_label_one_hot.getcol(i).nonzero()[0]))[0])
-                edge_weight[idx] = reweight_matrix[i][j].item()
-        
-        edge_weight = (1 - self.lamb) * 1 + self.lamb * edge_weight
-
         lam = np.random.beta(4.0, 4.0)
         data_b, id_new_value_old = self.shuffle_data(source_data)
         data_b = data_b.to(self.device)
@@ -244,6 +242,10 @@ class StruRW(BaseGDA):
         return loss, source_logits, target_logits
 
     def fit(self, source_data, target_data):
+        if source_data.edge_weight is None:
+            source_data.edge_weight = torch.ones(source_data.edge_index.shape[1]).to(self.device)
+        if target_data.edge_weight is None:
+            target_data.edge_weight = torch.ones(target_data.edge_index.shape[1]).to(self.device)
 
         if self.batch_size == 0:
             self.source_batch_size = source_data.x.shape[0]
@@ -295,9 +297,9 @@ class StruRW(BaseGDA):
                 self.gnn.train()
                 
                 if self.mode == 'mixup':
-                    loss, source_logits, target_logits = self.forward_model_mixup(sampled_source_data, sampled_target_data)
+                    loss, source_logits, target_logits = self.forward_model_mixup(sampled_source_data, sampled_target_data, epoch)
                 else:
-                    loss, source_logits, target_logits = self.forward_model(sampled_source_data, sampled_target_data, alpha)
+                    loss, source_logits, target_logits = self.forward_model(sampled_source_data, sampled_target_data, alpha, epoch)
                 epoch_loss += loss.item()
 
                 optimizer.zero_grad()
@@ -320,6 +322,32 @@ class StruRW(BaseGDA):
                    time=time.time() - start_time,
                    verbose=self.verbose,
                    train=True)
+    
+    def cal_reweight(self, source_data, target_data, target_pred):
+        print('edge reweight...')
+        src_edge_prob, tgt_edge_prob, tgt_true_edge_prob = self.cal_edge_prob_sep(source_data, target_data, target_pred)
+
+        reweight_matrix = torch.div(tgt_edge_prob, src_edge_prob)
+        reweight_matrix[torch.isinf(reweight_matrix)] = 1
+        reweight_matrix[torch.isnan(reweight_matrix)] = 1
+
+        num_nodes = source_data.x.shape[0] + target_data.x.shape[0]
+        label_pred = torch.cat((source_data.y, target_pred))
+        graph_label_one_hot = sp.csr_matrix(
+            (np.ones(num_nodes), (np.arange(num_nodes), label_pred.cpu().numpy())),
+            shape=(num_nodes, self.num_classes))
+        src_label_one_hot = sp.csr_matrix(
+            (np.ones(source_data.x.shape[0]), (np.arange(source_data.x.shape[0]), source_data.y.cpu().numpy())),
+            shape=(source_data.x.shape[0], self.num_classes))
+        
+        edge_weight = torch.ones(source_data.edge_index.shape[1]).to(self.device)
+        for i in range(self.num_classes):
+            for j in range(self.num_classes):
+                idx = np.intersect1d(
+                    np.where(np.in1d(source_data.edge_index[0].cpu().numpy(), graph_label_one_hot.getcol(j).nonzero()[0]))[0],
+                    np.where(np.in1d(source_data.edge_index[1].cpu().numpy(), src_label_one_hot.getcol(i).nonzero()[0]))[0])
+                edge_weight[idx] = reweight_matrix[i][j].item()
+        source_data.edge_weight = edge_weight
 
     def cal_edge_prob_sep(self, src_graph, tgt_graph, tgt_pred):
         src_adj = to_dense_adj(src_graph.edge_index)[0].cpu().numpy()
@@ -410,7 +438,7 @@ class StruRW(BaseGDA):
                 data.edge_weight = torch.ones(data.edge_index.shape[1]).to(self.device)
                 logits = self.gnn(data.x, data.edge_index, data.edge_index, 1, np.arange(data.x.shape[0]), data.edge_weight)
             else:
-                logits = self.gnn(data.x, data.edge_index)
+                _, logits = self.gnn(data, data.x)
 
         return logits, data.y
 

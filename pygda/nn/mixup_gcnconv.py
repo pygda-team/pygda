@@ -164,8 +164,7 @@ class MixUpGCNConv(gnn.MessagePassing):
         x = self.lin(x)
         
         # propagate_type: (x: Tensor, edge_weight: OptTensor)
-        out = self.propagate(edge_index, x=x, edge_weight=edge_weight,
-                             size=None, lmda = lmda, edge_rw = edge_rw) + self.lin_cen(x_cen)
+        out = self.propagate(edge_index=edge_index, x=x, edge_weight=edge_weight, lmda=lmda, edge_rw=edge_rw, size=None) + self.lin_cen(x_cen)
 
         if self.bias is not None:
             out += self.bias

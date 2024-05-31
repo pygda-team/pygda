@@ -15,7 +15,7 @@ from torch_geometric.utils import to_dense_adj
 
 from . import BaseGDA
 from ..nn import ReweightGNN
-from ..utils import logger, MMD
+from ..utils import logger
 from ..metrics import eval_macro_f1, eval_micro_f1
 
 
@@ -221,8 +221,10 @@ class PairAlign(BaseGDA):
         return loss, pred_src, pred_tgt
 
     def fit(self, source_data, target_data):
-        source_data.edge_weight = torch.ones(source_data.edge_index.shape[1]).to(self.device)
-        target_data.edge_weight = torch.ones(target_data.edge_index.shape[1]).to(self.device)
+        if source_data.edge_weight is None:
+            source_data.edge_weight = torch.ones(source_data.edge_index.shape[1]).to(self.device)
+        if target_data.edge_weight is None:
+            target_data.edge_weight = torch.ones(target_data.edge_index.shape[1]).to(self.device)
 
         if self.batch_size == 0:
             self.source_batch_size = source_data.x.shape[0]
