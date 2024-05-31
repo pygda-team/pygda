@@ -10,7 +10,7 @@ import scipy.sparse as sp
 import numpy as np
 
 from torch_geometric.loader import NeighborLoader
-from torch_geometric.utils import to_dense_adj
+from torch_geometric.utils import is_undirected, to_undirected
 
 from . import BaseGDA
 from ..nn import GNNBase, GradReverse
@@ -135,6 +135,11 @@ class DANE(BaseGDA):
         return loss, source_logits, target_logits
 
     def fit(self, source_data, target_data):
+        if not is_undirected(source_data.edge_index):
+            source_data.edge_index = to_undirected(source_data.edge_index)
+        
+        if not is_undirected(target_data.edge_index):
+            target_data.edge_index = to_undirected(target_data.edge_index)
 
         self.sample_size = min(source_data.x.shape[0], target_data.x.shape[0])
 
