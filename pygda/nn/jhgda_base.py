@@ -46,7 +46,7 @@ class GCNPooling(torch.nn.Module):
 
 class JHGDABase(nn.Module):
     """
-    Improving Graph Domain Adaptation with Network Hierarchy (CIKM-23)
+    Improving Graph Domain Adaptation with Network Hierarchy (CIKM-23).
 
     Parameters
     ----------

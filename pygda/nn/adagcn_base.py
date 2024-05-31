@@ -42,7 +42,7 @@ class GNN(torch.nn.Module):
 
 class AdaGCNBase(nn.Module):
     """
-    Graph Transfer Learning via Adversarial Domain Adaptation with Graph Convolution (TKDE-22)
+    Graph Transfer Learning via Adversarial Domain Adaptation with Graph Convolution (TKDE-22).
 
     Parameters
     ----------

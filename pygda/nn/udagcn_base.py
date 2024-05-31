@@ -40,7 +40,7 @@ class GNN(torch.nn.Module):
 
 class UDAGCNBase(nn.Module):
     """
-    Unsupervised Domain Adaptive Graph Convolutional Networks (WWW-20)
+    Unsupervised Domain Adaptive Graph Convolutional Networks (WWW-20).
 
     Parameters
     ----------

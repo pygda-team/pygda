@@ -96,7 +96,7 @@ class GNNVAE(torch.nn.Module):
 
 class ASNBase(nn.Module):
     """
-    Adversarial Separation Network for Cross-Network Node Classification (CIKM-21)
+    Adversarial Separation Network for Cross-Network Node Classification (CIKM-21).
 
     Parameters
     ----------

@@ -7,7 +7,7 @@ from torch_geometric.nn import GCNConv
 
 class GRADEBase(nn.Module):
     """
-    Non-IID Transfer Learning on Graphs (AAAI-23)
+    Non-IID Transfer Learning on Graphs (AAAI-23).
 
     Parameters
     ----------

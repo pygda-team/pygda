@@ -193,9 +193,9 @@ class A2GNN(BaseGDA):
                 optimizer.step()
 
                 if idx == 0:
-                    epoch_source_logits, epoch_source_labels = self.predict(sampled_source_data)
+                    epoch_source_logits, epoch_source_labels = self.predict(sampled_source_data, source=True)
                 else:
-                    source_logits, source_labels = self.predict(sampled_source_data)
+                    source_logits, source_labels = self.predict(sampled_source_data, source=True)
                     epoch_source_logits = torch.cat((epoch_source_logits, source_logits))
                     epoch_source_labels = torch.cat((epoch_source_labels, source_labels))
             
@@ -212,10 +212,13 @@ class A2GNN(BaseGDA):
     def process_graph(self, data):
         pass
 
-    def predict(self, data):
+    def predict(self, data, source=False):
         self.a2gnn.eval()
 
         with torch.no_grad():
-            logits = self.a2gnn(data, self.s_pnums)
+            if source:
+                logits = self.a2gnn(data, self.s_pnums)
+            else:
+                logits = self.a2gnn(data, self.t_pnums)
 
         return logits, data.y

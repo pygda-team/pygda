@@ -8,7 +8,7 @@ from .reverse_layer import GradReverse
 
 class A2GNNBase(nn.Module):
     """
-    Unsupervised Domain Adaptive Graph Convolutional Networks (WWW-20)
+    Rethinking Propagation for Unsupervised Graph Domain Adaptation (AAAI-24).
 
     Parameters
     ----------

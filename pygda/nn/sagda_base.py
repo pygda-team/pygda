@@ -109,7 +109,7 @@ class TgtGNN(torch.nn.Module):
 
 class SAGDABase(nn.Module):
     """
-    SA-GDA: Spectral Augmentation for Graph Domain Adaptation (MM-23)
+    SA-GDA: Spectral Augmentation for Graph Domain Adaptation (MM-23).
 
     Parameters
     ----------
