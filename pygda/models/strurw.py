@@ -234,7 +234,7 @@ class StruRW(BaseGDA):
             data_b.edge_index,
             lam,
             id_new_value_old,
-            edge_weight)
+            source_data.edge_weight)
         source_logits = self.gnn.feat_classifier(source_feat)
 
         loss = F.nll_loss(F.log_softmax(source_logits, dim=1), source_data.y)

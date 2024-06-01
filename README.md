@@ -1,6 +1,6 @@
 ![](docs/pygda_logo.png)
 -----
-[![PyPI version](https://badge.fury.io/py/pygda.svg)](https://badge.fury.io/py/pygda)
+[![PyPI - Version](https://img.shields.io/pypi/v/pygda?style=flat)](https://pypi.org/project/pygda/)
 [![Documentation Status](https://readthedocs.org/projects/pygda/badge/?version=stable)](https://pygda.readthedocs.io/en/stable/?badge=stable)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/pygda-team/pygda/issues)

@@ -113,7 +113,6 @@ class GCN_reweight(pyg_nn.MessagePassing):
         **kwargs
         ):
 
-        # kwargs.setdefault('aggr', "add")
         super(GCN_reweight, self).__init__(aggr=aggr, flow ="target_to_source")
 
         self.in_channels = in_channels
