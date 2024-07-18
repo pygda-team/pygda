@@ -113,3 +113,20 @@ In addition to the easy application of existing GDA models, PyGDA makes it simpl
 | 14     | [Graph Domain Adaptation: A Generative View](https://dl.acm.org/doi/10.1145/3631712)  |   DGDA   |    TKDD 2024    |
 | 15     | [Rethinking Propagation for Unsupervised Graph Domain Adaptation](https://arxiv.org/abs/2402.05660)      |    A2GNN    |   AAAI 2024    |   
 | 16     | [Pairwise Alignment Improves Graph Domain Adaptation](https://arxiv.org/abs/2403.01092)      |   PairAlign   |   ICML 2024    |
+
+
+## Cite
+
+If you compare with, build on, or use aspects of PyGDA, please consider citing "[Revisiting, Benchmarking and Understanding Unsupervised Graph Domain Adaptation](https://arxiv.org/abs/2407.11052)":
+
+```
+@misc{liu2024pydga,
+      title={Revisiting, Benchmarking and Understanding Unsupervised Graph Domain Adaptation}, 
+      author={Meihan Liu and Zhen Zhang and Jiachen Tang and Jiajun Bu and Bingsheng He and Sheng Zhou},
+      year={2024},
+      eprint={2407.11052},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2407.11052}, 
+}
+```
