@@ -27,9 +27,14 @@ logits, labels = model.predict(target_data)
 * **Seamlessly integrated data processing with PyG, ensuring full compatibility with PyG data structures.**
 
 ## :loudspeaker: What's New?
-We support graph-level domain adaptation tasks.
+We support graph-level domain adaptation task.
 - 7 models including `A2GNN`, `AdaGCN`, `CWGCN`, `DANE`, `GRADE`, `SAGDA`, `UDAGCN` are supported.
 - Various TUDatasets are supported including `FRANKENSTEIN`, `Mutagenicity` and `PROTEINS`.
+- Only add one parameters to the model to conduct graph level domain adaptation task as follows:
+```
+model = A2GNN(in_dim=num_features, hid_dim=args.nhid, num_classes=num_classes, device=args.device, mode='graph')
+```
+
 
 ## Installation
 Note: PyGDA depends on [PyTorch](https://pytorch.org/), [PyG](https://pytorch-geometric.readthedocs.io/en/latest/), [PyTorch Sparse](https://github.com/rusty1s/pytorch_sparse) and [Pytorch Scatter](https://github.com/rusty1s/pytorch_scatter). PyGDA does not automatically install these libraries for you. Please install them separately in order to run PyGDA successfully.
