@@ -6,7 +6,7 @@ import time
 
 import numpy as np
 
-from torch_geometric.loader import NeighborLoader
+from torch_geometric.loader import NeighborLoader, DataLoader
 
 from . import BaseGDA
 from ..nn import A2GNNBase
@@ -26,6 +26,8 @@ class A2GNN(BaseGDA):
         Hidden dimension of model.
     num_classes : int
         Total number of classes.
+    mode : str, optional
+        Mode for node or graph level tasks. Default: ``node``.
     num_layers : int, optional
         Total number of layers in model. Default: ``3``.
     dropout : float, optional
@@ -66,6 +68,7 @@ class A2GNN(BaseGDA):
         in_dim,
         hid_dim,
         num_classes,
+        mode='node',
         num_layers=3,
         dropout=0.,
         act=F.relu,
@@ -102,6 +105,7 @@ class A2GNN(BaseGDA):
         self.t_pnums=t_pnums
         self.adv=adv
         self.weight=weight
+        self.mode=mode
 
     def init_model(self, **kwargs):
 
@@ -113,6 +117,7 @@ class A2GNN(BaseGDA):
             adv=self.adv,
             dropout=self.dropout,
             act=self.act,
+            mode=self.mode,
             **kwargs
         ).to(self.device)
 
@@ -122,8 +127,15 @@ class A2GNN(BaseGDA):
         train_loss = F.nll_loss(F.log_softmax(source_logits, dim=1), source_data.y)
         loss = train_loss
 
-        source_features = self.a2gnn.feat_bottleneck(source_data.x, source_data.edge_index, self.s_pnums)
-        target_features = self.a2gnn.feat_bottleneck(target_data.x, target_data.edge_index, self.t_pnums)
+        if self.mode == 'node':
+            source_batch = None
+            target_batch = None
+        else:
+            source_batch = source_data.batch
+            target_batch = target_data.batch
+
+        source_features = self.a2gnn.feat_bottleneck(source_data.x, source_data.edge_index, source_batch, self.s_pnums)
+        target_features = self.a2gnn.feat_bottleneck(target_data.x, target_data.edge_index, target_batch, self.t_pnums)
 
         # Adv loss
         if self.adv:
@@ -147,22 +159,41 @@ class A2GNN(BaseGDA):
 
     def fit(self, source_data, target_data):
 
-        if self.batch_size == 0:
-            self.source_batch_size = source_data.x.shape[0]
-            source_loader = NeighborLoader(source_data,
-                                self.num_neigh,
-                                batch_size=self.source_batch_size)
-            self.target_batch_size = target_data.x.shape[0]
-            target_loader = NeighborLoader(target_data,
-                                self.num_neigh,
-                                batch_size=self.target_batch_size)
+        if self.mode == 'node':
+            self.num_source_nodes, _ = source_data.x.shape
+            self.num_target_nodes, _ = target_data.x.shape
+
+            if self.batch_size == 0:
+                self.source_batch_size = source_data.x.shape[0]
+                self.source_loader = NeighborLoader(
+                    source_data,
+                    self.num_neigh,
+                    batch_size=self.source_batch_size)
+                self.target_batch_size = target_data.x.shape[0]
+                self.target_loader = NeighborLoader(
+                    target_data,
+                    self.num_neigh,
+                    batch_size=self.target_batch_size)
+            else:
+                self.source_loader = NeighborLoader(
+                    source_data,
+                    self.num_neigh,
+                    batch_size=self.batch_size)
+                self.target_loader = NeighborLoader(
+                    target_data,
+                    self.num_neigh,
+                    batch_size=self.batch_size)
+        elif self.mode == 'graph':
+            if self.batch_size == 0:
+                num_source_graphs = len(source_data)
+                num_target_graphs = len(target_data)
+                self.source_loader = DataLoader(source_data, batch_size=num_source_graphs, shuffle=True)
+                self.target_loader = DataLoader(target_data, batch_size=num_target_graphs, shuffle=True)
+            else:
+                self.source_loader = DataLoader(source_data, batch_size=self.batch_size, shuffle=True)
+                self.target_loader = DataLoader(target_data, batch_size=self.batch_size, shuffle=True)
         else:
-            source_loader = NeighborLoader(source_data,
-                                self.num_neigh,
-                                batch_size=self.batch_size)
-            target_loader = NeighborLoader(target_data,
-                                self.num_neigh,
-                                batch_size=self.batch_size)
+            assert self.mode in ('graph', 'node'), 'Invalid train mode'
 
         self.a2gnn = self.init_model(**self.kwargs)
 
@@ -182,8 +213,11 @@ class A2GNN(BaseGDA):
             p = float(epoch) / self.epoch
             alpha = 2. / (1. + np.exp(-10. * p)) - 1
 
-            for idx, (sampled_source_data, sampled_target_data) in enumerate(zip(source_loader, target_loader)):
+            for idx, (sampled_source_data, sampled_target_data) in enumerate(zip(self.source_loader, self.target_loader)):
                 self.a2gnn.train()
+
+                sampled_source_data = sampled_source_data.to(self.device)
+                sampled_target_data = sampled_target_data.to(self.device)
                 
                 loss, source_logits, target_logits = self.forward_model(sampled_source_data, sampled_target_data, alpha)
                 epoch_loss += loss.item()
@@ -193,9 +227,9 @@ class A2GNN(BaseGDA):
                 optimizer.step()
 
                 if idx == 0:
-                    epoch_source_logits, epoch_source_labels = self.predict(sampled_source_data, source=True)
+                    epoch_source_logits, epoch_source_labels = source_logits, sampled_source_data.y
                 else:
-                    source_logits, source_labels = self.predict(sampled_source_data, source=True)
+                    source_logits, source_labels = source_logits, sampled_source_data.y
                     epoch_source_logits = torch.cat((epoch_source_logits, source_logits))
                     epoch_source_labels = torch.cat((epoch_source_labels, source_labels))
             
@@ -215,10 +249,29 @@ class A2GNN(BaseGDA):
     def predict(self, data, source=False):
         self.a2gnn.eval()
 
-        with torch.no_grad():
-            if source:
-                logits = self.a2gnn(data, self.s_pnums)
-            else:
-                logits = self.a2gnn(data, self.t_pnums)
+        if source:
+            for idx, sampled_data in enumerate(self.source_loader):
+                sampled_data = sampled_data.to(self.device)
+                with torch.no_grad():
+                    logits = self.a2gnn(sampled_data, self.s_pnums)
 
-        return logits, data.y
+                    if idx == 0:
+                        logits, labels = logits, sampled_data.y
+                    else:
+                        sampled_logits, sampled_labels = logits, sampled_data.y
+                        logits = torch.cat((logits, sampled_logits))
+                        labels = torch.cat((labels, sampled_labels))
+        else:
+            for idx, sampled_data in enumerate(self.target_loader):
+                sampled_data = sampled_data.to(self.device)
+                with torch.no_grad():
+                    logits = self.a2gnn(sampled_data, self.t_pnums)
+
+                    if idx == 0:
+                        logits, labels = logits, sampled_data.y
+                    else:
+                        sampled_logits, sampled_labels = logits, sampled_data.y
+                        logits = torch.cat((logits, sampled_logits))
+                        labels = torch.cat((labels, sampled_labels))
+
+        return logits, labels

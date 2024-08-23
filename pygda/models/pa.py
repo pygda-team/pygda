@@ -382,8 +382,8 @@ class PairAlign(BaseGDA):
         src_graph.ew = np.ones_like(src_graph.true_ew)
     
     def cal_edge_prob_sep(self, src_graph, tgt_graph):
-        src_adj = to_dense_adj(src_graph.edge_index).squeeze().T.detach().cpu().numpy()
-        tgt_adj = to_dense_adj(tgt_graph.edge_index).squeeze().T.detach().cpu().numpy()
+        src_adj = to_dense_adj(src_graph.edge_index, max_num_nodes=src_graph.x.shape[0]).squeeze().T.detach().cpu().numpy()
+        tgt_adj = to_dense_adj(tgt_graph.edge_index, max_num_nodes=tgt_graph.x.shape[0]).squeeze().T.detach().cpu().numpy()
         num_nodes_src = src_graph.x.shape[0]
         num_nodes_tgt = tgt_graph.x.shape[0]
         src_label = src_graph.y

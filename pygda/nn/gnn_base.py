@@ -5,6 +5,8 @@ import torch.nn.functional as F
 from torch_geometric.nn import GCNConv, SAGEConv, GATConv, GINConv
 from torch.nn import Sequential, Linear
 
+from torch_geometric.nn import global_mean_pool
+
 
 class GNNBase(nn.Module):
     """
@@ -28,6 +30,8 @@ class GNNBase(nn.Module):
     gnn : string, optional
         The backbone of GNN model.
         Default: ``gcn``.
+    mode : str, optional
+        Mode for node or graph level tasks. Default: ``node``.
     **kwargs : optional
         Other parameters for the backbone.
     """
@@ -40,6 +44,7 @@ class GNNBase(nn.Module):
                  dropout=0.1,
                  act=F.relu,
                  gnn='gcn',
+                 mode='node',
                  **kwargs):
         super(GNNBase, self).__init__()
 
@@ -52,6 +57,7 @@ class GNNBase(nn.Module):
         self.dropout = dropout
         self.gnn = gnn
         self.act = act
+        self.mode = mode
 
         self.convs = nn.ModuleList()
 
@@ -60,34 +66,43 @@ class GNNBase(nn.Module):
             
             for _ in range(self.num_layers - 1):
                 self.convs.append(GCNConv(self.hid_dim, self.hid_dim))
-
-            self.cls = GCNConv(self.hid_dim, self.num_classes)
+            
+            if self.mode == 'node':
+                self.cls = GCNConv(self.hid_dim, self.num_classes)
         elif self.gnn == 'sage':
             self.convs.append(SAGEConv(self.in_dim, self.hid_dim))
             
             for _ in range(self.num_layers - 1):
                 self.convs.append(SAGEConv(self.hid_dim, self.hid_dim))
 
-            self.cls = SAGEConv(self.hid_dim, self.num_classes)
+            if self.mode == 'node':
+                self.cls = SAGEConv(self.hid_dim, self.num_classes)
         elif self.gnn == 'gat':
             self.convs.append(GATConv(self.in_dim, self.hid_dim, heads=1, concat=False))
             
             for _ in range(self.num_layers - 1):
                 self.convs.append(GATConv(self.hid_dim, self.hid_dim, heads=1, concat=False))
 
-            self.cls = GATConv(self.hid_dim, self.num_classes, heads=1, concat=False)
+            if self.mode == 'node':
+                self.cls = GATConv(self.hid_dim, self.num_classes, heads=1, concat=False)
         elif self.gnn == 'gin':
             self.convs.append(GINConv(Sequential(Linear(self.in_dim, self.hid_dim)), train_eps=True))
 
             for _ in range(self.num_layers - 1):
                 self.convs.append(GINConv(Sequential(Linear(self.hid_dim, self.hid_dim)), train_eps=True))
 
-            self.cls = GINConv(Sequential(Linear(self.hid_dim, self.num_classes)), train_eps=True)
+            if self.mode == 'node':
+                self.cls = GINConv(Sequential(Linear(self.hid_dim, self.num_classes)), train_eps=True)
+        
+        if self.mode == 'graph':
+            self.cls = Linear(self.hid_dim, self.num_classes)
 
             
-    def forward(self, x, edge_index, edge_weight=None):
+    def forward(self, x, edge_index, edge_weight=None, batch=None):
         x = self.feat_bottleneck(x, edge_index, edge_weight)
-        x = self.feat_classifier(x, edge_index, edge_weight)
+        if self.mode == 'graph':
+            x = global_mean_pool(x, batch)
+        x = self.feat_classifier(x, edge_index, edge_weight) 
 
         x = F.log_softmax(x, dim=1)
 
@@ -103,6 +118,9 @@ class GNNBase(nn.Module):
         return x
     
     def feat_classifier(self, x, edge_index, edge_weight=None):
-        x = self.cls(x, edge_index, edge_weight)
+        if self.mode == 'node':
+            x = self.cls(x, edge_index, edge_weight)
+        else:
+            x = self.cls(x)
         
         return x

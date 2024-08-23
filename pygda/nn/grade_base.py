@@ -3,6 +3,7 @@ from torch import nn
 import torch.nn.functional as F
 
 from torch_geometric.nn import GCNConv
+from torch_geometric.nn import global_mean_pool
 
 
 class GRADEBase(nn.Module):
@@ -26,6 +27,8 @@ class GRADEBase(nn.Module):
         Default: ``torch.nn.functional.relu``.
     disc : str, optional
         Discriminator. Default: ``JS``.
+    mode : str, optional
+        Mode for node or graph level tasks. Default: ``node``.
     **kwargs : optional
         Other parameters for the backbone.
     """
@@ -38,6 +41,7 @@ class GRADEBase(nn.Module):
                  dropout=0.1,
                  act=F.relu,
                  disc='JS',
+                 mode='node',
                  **kwargs):
         super(GRADEBase, self).__init__()
         
@@ -47,6 +51,7 @@ class GRADEBase(nn.Module):
         self.num_layers = num_layers
         self.dropout = dropout
         self.act = act
+        self.mode = mode
 
         self.convs = nn.ModuleList()
 
@@ -71,8 +76,11 @@ class GRADEBase(nn.Module):
         self.criterion = nn.CrossEntropyLoss()
             
     def forward(self, data):
-        x, edge_index = data.x, data.edge_index
-        x, feat_list = self.feat_bottleneck(x, edge_index)
+        if self.mode == 'node':
+            x, edge_index, batch = data.x, data.edge_index, None
+        else:
+            x, edge_index, batch = data.x, data.edge_index, data.batch
+        x, feat_list = self.feat_bottleneck(x, edge_index, batch)
         x = self.feat_classifier(x)
 
         feat_list.append(x)
@@ -80,13 +88,19 @@ class GRADEBase(nn.Module):
 
         return x, feat_list
     
-    def feat_bottleneck(self, x, edge_index):
+    def feat_bottleneck(self, x, edge_index, batch):
         feat_list = []
         for i, conv in enumerate(self.convs):
             x = conv(x, edge_index)
             x = self.act(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
-            feat_list.append(x)
+            if self.mode == 'node':
+                feat_list.append(x)
+            else:
+                feat_list.append(global_mean_pool(x, batch))
+        
+        if self.mode == 'graph':
+            x = global_mean_pool(x, batch)
 
         return x, feat_list
     

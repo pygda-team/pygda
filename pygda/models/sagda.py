@@ -4,8 +4,7 @@ import torch.nn.functional as F
 import itertools
 import time
 
-from torch_geometric.loader import NeighborLoader
-from torch_geometric.utils import get_laplacian, to_dense_adj
+from torch_geometric.loader import NeighborLoader, DataLoader
 
 from . import BaseGDA
 from ..nn import SAGDABase
@@ -15,6 +14,8 @@ from ..metrics import eval_macro_f1, eval_micro_f1
 
 import scipy
 import numpy as np
+
+from torch_geometric.nn import global_mean_pool
 
 
 class SAGDA(BaseGDA):
@@ -29,6 +30,8 @@ class SAGDA(BaseGDA):
         Hidden dimension of model.
     num_classes : int
         Total number of classes.
+    mode : str, optional
+        Mode for node or graph level tasks. Default: ``node``.
     num_layers : int, optional
         Total number of layers in model. Default: ``2``.
     dropout : float, optional
@@ -69,6 +72,7 @@ class SAGDA(BaseGDA):
         in_dim,
         hid_dim,
         num_classes,
+        mode='node',
         beta=1.0,
         alpha=1.0,
         num_layers=2,
@@ -107,6 +111,7 @@ class SAGDA(BaseGDA):
         self.adv_dim=adv_dim
         self.alpha=alpha
         self.beta=beta
+        self.mode=mode
 
     def init_model(self, **kwargs):
 
@@ -128,25 +133,41 @@ class SAGDA(BaseGDA):
         pass
 
     def fit(self, source_data, target_data):
-        self.num_source_nodes, _ = source_data.x.shape
-        self.num_target_nodes, _ = target_data.x.shape
+        if self.mode == 'node':
+            self.num_source_nodes, _ = source_data.x.shape
+            self.num_target_nodes, _ = target_data.x.shape
 
-        if self.batch_size == 0:
-            self.source_batch_size = source_data.x.shape[0]
-            source_loader = NeighborLoader(source_data,
-                                self.num_neigh,
-                                batch_size=self.source_batch_size)
-            self.target_batch_size = target_data.x.shape[0]
-            target_loader = NeighborLoader(target_data,
-                                self.num_neigh,
-                                batch_size=self.target_batch_size)
+            if self.batch_size == 0:
+                self.source_batch_size = source_data.x.shape[0]
+                self.source_loader = NeighborLoader(
+                    source_data,
+                    self.num_neigh,
+                    batch_size=self.source_batch_size)
+                self.target_batch_size = target_data.x.shape[0]
+                self.target_loader = NeighborLoader(
+                    target_data,
+                    self.num_neigh,
+                    batch_size=self.target_batch_size)
+            else:
+                self.source_loader = NeighborLoader(
+                    source_data,
+                    self.num_neigh,
+                    batch_size=self.batch_size)
+                self.target_loader = NeighborLoader(
+                    target_data,
+                    self.num_neigh,
+                    batch_size=self.batch_size)
+        elif self.mode == 'graph':
+            if self.batch_size == 0:
+                num_source_graphs = len(source_data)
+                num_target_graphs = len(target_data)
+                self.source_loader = DataLoader(source_data, batch_size=num_source_graphs, shuffle=True)
+                self.target_loader = DataLoader(target_data, batch_size=num_target_graphs, shuffle=True)
+            else:
+                self.source_loader = DataLoader(source_data, batch_size=self.batch_size, shuffle=True)
+                self.target_loader = DataLoader(target_data, batch_size=self.batch_size, shuffle=True)
         else:
-            source_loader = NeighborLoader(source_data,
-                                self.num_neigh,
-                                batch_size=self.batch_size)
-            target_loader = NeighborLoader(target_data,
-                                self.num_neigh,
-                                batch_size=self.batch_size)
+            assert self.mode in ('graph', 'node'), 'Invalid train mode'
 
         self.sagda = self.init_model(**self.kwargs)
 
@@ -165,11 +186,19 @@ class SAGDA(BaseGDA):
 
             alpha = min((epoch + 1) / self.epoch, 0.05)
 
+            for idx, (source_data, target_data) in enumerate(zip(self.source_loader, self.target_loader)):
+                source_data = source_data.to(self.device)
+                target_data = target_data.to(self.device)
+
             for model in self.sagda.models:
                 model.train()
             
             encoded_source = self.sagda.src_encode(source_data.x, source_data.edge_index)
+            if self.mode == 'graph':
+                encoded_source = global_mean_pool(encoded_source, source_data.batch)
             encoded_target = self.sagda.encode(target_data, 'target')
+            if self.mode == 'graph':
+                encoded_target = global_mean_pool(encoded_target, target_data.batch)
             source_logits = self.sagda.cls_model(encoded_source)
 
             # use source classifier loss:
@@ -218,12 +247,41 @@ class SAGDA(BaseGDA):
     def process_graph(self, data):
         pass
 
-    def predict(self, data):
+    def predict(self, data, source=False):
         for model in self.sagda.models:
             model.eval()
+        
+        if source:
+            for idx, sampled_data in enumerate(self.source_loader):
+                sampled_data = sampled_data.to(self.device)
+                with torch.no_grad():
+                    encoded_data = self.sagda.src_encode(sampled_data.x, sampled_data.edge_index)
 
-        with torch.no_grad():
-            encoded_data = self.sagda.encode(data, 'target')
-            logits = self.sagda.cls_model(encoded_data)
+                    if self.mode == 'graph':
+                        encoded_data = global_mean_pool(encoded_data, sampled_data.batch)
+                    logits = self.sagda.cls_model(encoded_data)
 
-        return logits, data.y
+                    if idx == 0:
+                        logits, labels = logits, sampled_data.y
+                    else:
+                        sampled_logits, sampled_labels = logits, sampled_data.y
+                        logits = torch.cat((logits, sampled_logits))
+                        labels = torch.cat((labels, sampled_labels))
+        else:
+            for idx, sampled_data in enumerate(self.target_loader):
+                sampled_data = sampled_data.to(self.device)
+                with torch.no_grad():
+                    encoded_data = self.sagda.encode(sampled_data, 'target')
+
+                    if self.mode == 'graph':
+                        encoded_data = global_mean_pool(encoded_data, sampled_data.batch)
+                    logits = self.sagda.cls_model(encoded_data)
+
+                    if idx == 0:
+                        logits, labels = logits, sampled_data.y
+                    else:
+                        sampled_logits, sampled_labels = logits, sampled_data.y
+                        logits = torch.cat((logits, sampled_logits))
+                        labels = torch.cat((labels, sampled_labels))
+        
+        return logits, labels

@@ -8,6 +8,7 @@ from .mag import MAGDataset
 from .squirrel import SquirrelDataset
 from .twitch import TwitchDataset
 from .twitter import TwitterDataset
+from .tugraph import GraphTUDataset
 
 
 __all__ = [
@@ -20,5 +21,6 @@ __all__ = [
     "MAGDataset",
     "SquirrelDataset",
     "TwitchDataset",
-    "TwitterDataset"
+    "TwitterDataset",
+    "GraphTUDataset"
 ]

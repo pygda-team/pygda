@@ -5,7 +5,7 @@ import itertools
 import time
 
 import torch.nn as nn
-from torch_geometric.loader import NeighborLoader
+from torch_geometric.loader import NeighborLoader, DataLoader
 
 from . import BaseGDA
 from ..nn import AdaGCNBase
@@ -25,6 +25,8 @@ class AdaGCN(BaseGDA):
         Hidden dimension of model.
     num_classes : int
         Total number of classes.
+    mode : str, optional
+        Mode for node or graph level tasks. Default: ``node``.
     num_layers : int, optional
         Total number of layers in model. Default: ``3``.
     dropout : float, optional
@@ -65,6 +67,7 @@ class AdaGCN(BaseGDA):
         in_dim,
         hid_dim,
         num_classes,
+        mode='node',
         num_layers=3,
         dropout=0.,
         act=F.relu,
@@ -101,6 +104,7 @@ class AdaGCN(BaseGDA):
         self.adv_dim=adv_dim
         self.gp_weight=gp_weight
         self.domain_weight=domain_weight
+        self.mode=mode
 
     def init_model(self, **kwargs):
 
@@ -112,7 +116,7 @@ class AdaGCN(BaseGDA):
             dropout=self.dropout,
             act=self.act,
             gnn_type=self.gnn_type,
-            adv_dim=self.adv_dim,
+            mode=self.mode,
             **kwargs
         ).to(self.device)
 
@@ -145,23 +149,41 @@ class AdaGCN(BaseGDA):
         return loss, source_logits, target_logits
 
     def fit(self, source_data, target_data):
+        if self.mode == 'node':
+            self.num_source_nodes, _ = source_data.x.shape
+            self.num_target_nodes, _ = target_data.x.shape
 
-        if self.batch_size == 0:
-            self.source_batch_size = source_data.x.shape[0]
-            source_loader = NeighborLoader(source_data,
-                                self.num_neigh,
-                                batch_size=self.source_batch_size)
-            self.target_batch_size = target_data.x.shape[0]
-            target_loader = NeighborLoader(target_data,
-                                self.num_neigh,
-                                batch_size=self.target_batch_size)
+            if self.batch_size == 0:
+                self.source_batch_size = source_data.x.shape[0]
+                self.source_loader = NeighborLoader(
+                    source_data,
+                    self.num_neigh,
+                    batch_size=self.source_batch_size)
+                self.target_batch_size = target_data.x.shape[0]
+                self.target_loader = NeighborLoader(
+                    target_data,
+                    self.num_neigh,
+                    batch_size=self.target_batch_size)
+            else:
+                self.source_loader = NeighborLoader(
+                    source_data,
+                    self.num_neigh,
+                    batch_size=self.batch_size)
+                self.target_loader = NeighborLoader(
+                    target_data,
+                    self.num_neigh,
+                    batch_size=self.batch_size)
+        elif self.mode == 'graph':
+            if self.batch_size == 0:
+                num_source_graphs = len(source_data)
+                num_target_graphs = len(target_data)
+                self.source_loader = DataLoader(source_data, batch_size=num_source_graphs, shuffle=True)
+                self.target_loader = DataLoader(target_data, batch_size=num_target_graphs, shuffle=True)
+            else:
+                self.source_loader = DataLoader(source_data, batch_size=self.batch_size, shuffle=True)
+                self.target_loader = DataLoader(target_data, batch_size=self.batch_size, shuffle=True)
         else:
-            source_loader = NeighborLoader(source_data,
-                                self.num_neigh,
-                                batch_size=self.batch_size)
-            target_loader = NeighborLoader(target_data,
-                                self.num_neigh,
-                                batch_size=self.batch_size)
+            assert self.mode in ('graph', 'node'), 'Invalid train mode'
 
         self.adagcn = self.init_model(**self.kwargs)
 
@@ -192,8 +214,11 @@ class AdaGCN(BaseGDA):
             epoch_source_logits = None
             epoch_source_labels = None
 
-            for idx, (sampled_source_data, sampled_target_data) in enumerate(zip(source_loader, target_loader)):
+            for idx, (sampled_source_data, sampled_target_data) in enumerate(zip(self.source_loader, self.target_loader)):
                 self.adagcn.train()
+
+                sampled_source_data = sampled_source_data.to(self.device)
+                sampled_target_data = sampled_target_data.to(self.device)
                 
                 loss, source_logits, target_logits = self.forward_model(sampled_source_data, sampled_target_data)
                 epoch_loss += loss.item()
@@ -203,9 +228,9 @@ class AdaGCN(BaseGDA):
                 optimizer.step()
 
                 if idx == 0:
-                    epoch_source_logits, epoch_source_labels = self.predict(sampled_source_data)
+                    epoch_source_logits, epoch_source_labels = source_logits, sampled_source_data.y
                 else:
-                    source_logits, source_labels = self.predict(sampled_source_data)
+                    source_logits, source_labels = source_logits, sampled_source_data.y
                     epoch_source_logits = torch.cat((epoch_source_logits, source_logits))
                     epoch_source_labels = torch.cat((epoch_source_labels, source_labels))
             
@@ -222,14 +247,37 @@ class AdaGCN(BaseGDA):
     def process_graph(self, data):
         pass
 
-    def predict(self, data):
+    def predict(self, data, source=False):
         self.adagcn.eval()
 
-        with torch.no_grad():
-            encoded_data = self.adagcn(data)
-            logits = self.adagcn.cls_model(encoded_data)
+        if source:
+            for idx, sampled_data in enumerate(self.source_loader):
+                sampled_data = sampled_data.to(self.device)
+                with torch.no_grad():
+                    encoded_data = self.adagcn(sampled_data)
+                    logits = self.adagcn.cls_model(encoded_data)
 
-        return logits, data.y
+                    if idx == 0:
+                        logits, labels = logits, sampled_data.y
+                    else:
+                        sampled_logits, sampled_labels = logits, sampled_data.y
+                        logits = torch.cat((logits, sampled_logits))
+                        labels = torch.cat((labels, sampled_labels))
+        else:
+            for idx, sampled_data in enumerate(self.target_loader):
+                sampled_data = sampled_data.to(self.device)
+                with torch.no_grad():
+                    encoded_data = self.adagcn(sampled_data)
+                    logits = self.adagcn.cls_model(encoded_data)
+
+                    if idx == 0:
+                        logits, labels = logits, sampled_data.y
+                    else:
+                        sampled_logits, sampled_labels = logits, sampled_data.y
+                        logits = torch.cat((logits, sampled_logits))
+                        labels = torch.cat((labels, sampled_labels))
+
+        return logits, labels
 
     def gradient_penalty(self, encoded_source, encoded_target):
         num_s = encoded_source.shape[0]
@@ -275,4 +323,3 @@ class AdaGCN(BaseGDA):
         gradient_penalty = torch.mean((gradient_norm - 1) ** 2)
         
         return gradient_penalty
-

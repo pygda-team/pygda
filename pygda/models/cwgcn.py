@@ -6,7 +6,7 @@ import time
 
 import numpy as np
 
-from torch_geometric.loader import NeighborLoader
+from torch_geometric.loader import NeighborLoader, DataLoader
 
 from . import BaseGDA
 from ..nn import CWGCNBase
@@ -27,6 +27,8 @@ class CWGCN(BaseGDA):
         Hidden dimension of model.
     num_classes : int
         Total number of classes.
+    mode : str, optional
+        Mode for node or graph level tasks. Default: ``node``.
     num_layers : int, optional
         Total number of layers in model. Default: ``2``.
     dropout : float, optional
@@ -61,6 +63,7 @@ class CWGCN(BaseGDA):
         in_dim,
         hid_dim,
         num_classes,
+        mode='node',
         num_layers=2,
         dropout=0.,
         gnn='gcn',
@@ -93,7 +96,8 @@ class CWGCN(BaseGDA):
         assert gnn in ('gcn', 'sage', 'gat', 'gin'), 'Invalid gnn backbone'
         assert num_layers==2, 'unsupport number of layers'
 
-        self.gnn=gnn
+        self.arc = gnn
+        self.mode = mode
 
     def init_model(self, **kwargs):
 
@@ -103,36 +107,59 @@ class CWGCN(BaseGDA):
             num_classes=self.num_classes,
             num_layers=self.num_layers,
             dropout=self.dropout,
-            gnn=self.gnn,
+            gnn=self.arc,
+            mode=self.mode,
             **kwargs
         ).to(self.device)
 
     def forward_model(self, source_data):
         # source domain cross entropy loss
-        source_logits, x_list = self.gnn(source_data.x, source_data.edge_index)
+        if self.mode == 'node':
+            batch = None
+        else:
+            batch = source_data.batch
+        source_logits, x_list = self.gnn(source_data.x, source_data.edge_index, batch=batch)
 
         loss, weight = self.gnn.c_loss(source_logits, source_data.y)
 
         return loss, source_logits, weight, x_list
 
     def fit(self, source_data, target_data):
+        if self.mode == 'node':
+            self.num_source_nodes, _ = source_data.x.shape
+            self.num_target_nodes, _ = target_data.x.shape
 
-        if self.batch_size == 0:
-            self.source_batch_size = source_data.x.shape[0]
-            source_loader = NeighborLoader(source_data,
-                                self.num_neigh,
-                                batch_size=self.source_batch_size)
-            self.target_batch_size = target_data.x.shape[0]
-            target_loader = NeighborLoader(target_data,
-                                self.num_neigh,
-                                batch_size=self.target_batch_size)
+            if self.batch_size == 0:
+                self.source_batch_size = source_data.x.shape[0]
+                self.source_loader = NeighborLoader(
+                    source_data,
+                    self.num_neigh,
+                    batch_size=self.source_batch_size)
+                self.target_batch_size = target_data.x.shape[0]
+                self.target_loader = NeighborLoader(
+                    target_data,
+                    self.num_neigh,
+                    batch_size=self.target_batch_size)
+            else:
+                self.source_loader = NeighborLoader(
+                    source_data,
+                    self.num_neigh,
+                    batch_size=self.batch_size)
+                self.target_loader = NeighborLoader(
+                    target_data,
+                    self.num_neigh,
+                    batch_size=self.batch_size)
+        elif self.mode == 'graph':
+            if self.batch_size == 0:
+                num_source_graphs = len(source_data)
+                num_target_graphs = len(target_data)
+                self.source_loader = DataLoader(source_data, batch_size=num_source_graphs, shuffle=True)
+                self.target_loader = DataLoader(target_data, batch_size=num_target_graphs, shuffle=True)
+            else:
+                self.source_loader = DataLoader(source_data, batch_size=self.batch_size, shuffle=True)
+                self.target_loader = DataLoader(target_data, batch_size=self.batch_size, shuffle=True)
         else:
-            source_loader = NeighborLoader(source_data,
-                                self.num_neigh,
-                                batch_size=self.batch_size)
-            target_loader = NeighborLoader(target_data,
-                                self.num_neigh,
-                                batch_size=self.batch_size)
+            assert self.mode in ('graph', 'node'), 'Invalid train mode'
 
         self.gnn = self.init_model(**self.kwargs)
 
@@ -151,8 +178,10 @@ class CWGCN(BaseGDA):
             epoch_source_logits = None
             epoch_source_labels = None
 
-            for idx, sampled_source_data in enumerate(source_loader):
+            for idx, sampled_source_data in enumerate(self.source_loader):
                 self.gnn.train()
+
+                sampled_source_data = sampled_source_data.to(self.device)
                 
                 loss, source_logits, weight, x_list = self.forward_model(sampled_source_data)
                 epoch_loss += loss.item()
@@ -198,9 +227,16 @@ class CWGCN(BaseGDA):
             mean_s, std_s = self.get_src_mean_std(x_list[0], weight)
             mean_s_2, std_s_2 = self.get_src_mean_std(x_list[1], weight)
 
-            for idx, sampled_target_data in enumerate(target_loader):
+            for idx, sampled_target_data in enumerate(self.target_loader):
                 self.gnn.train()
-                target_logits, tgt_list = self.gnn(sampled_target_data.x, sampled_target_data.edge_index)
+
+                sampled_target_data = sampled_target_data.to(self.device)
+                if self.mode == 'node':
+                    batch = None
+                else:
+                    batch = sampled_target_data.batch
+                target_logits, tgt_list = self.gnn(sampled_target_data.x, sampled_target_data.edge_index, batch=batch)
+
                 std_t, mean_t = torch.std_mean(tgt_list[0], dim=0)
                 loss = torch.sum(torch.square(mean_s.detach() - mean_t)) + torch.sum(torch.square(std_s.detach() - std_t))
                 std_t_2, mean_t_2 = torch.std_mean(tgt_list[1], dim=0)
@@ -232,13 +268,35 @@ class CWGCN(BaseGDA):
     def process_graph(self, data):
         pass
 
-    def predict(self, data):
+    def predict(self, data, source=False):
         self.gnn.eval()
 
-        with torch.no_grad():
-            logits, _ = self.gnn(data.x, data.edge_index)
+        if source:
+            for idx, sampled_data in enumerate(self.source_loader):
+                sampled_data = sampled_data.to(self.device)
+                with torch.no_grad():
+                    logits, _ = self.gnn(sampled_data.x, sampled_data.edge_index, batch=sampled_data.batch)
 
-        return logits, data.y
+                    if idx == 0:
+                        logits, labels = logits, sampled_data.y
+                    else:
+                        sampled_logits, sampled_labels = logits, sampled_data.y
+                        logits = torch.cat((logits, sampled_logits))
+                        labels = torch.cat((labels, sampled_labels))
+        else:
+            for idx, sampled_data in enumerate(self.target_loader):
+                sampled_data = sampled_data.to(self.device)
+                with torch.no_grad():
+                    logits, _ = self.gnn(sampled_data.x, sampled_data.edge_index, batch=sampled_data.batch)
+
+                    if idx == 0:
+                        logits, labels = logits, sampled_data.y
+                    else:
+                        sampled_logits, sampled_labels = logits, sampled_data.y
+                        logits = torch.cat((logits, sampled_logits))
+                        labels = torch.cat((labels, sampled_labels))
+
+        return logits, labels
     
     def get_src_mean_std(self, embedding, weight):
         sum_w = torch.sum(weight)

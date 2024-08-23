@@ -350,8 +350,8 @@ class StruRW(BaseGDA):
         source_data.edge_weight = edge_weight
 
     def cal_edge_prob_sep(self, src_graph, tgt_graph, tgt_pred):
-        src_adj = to_dense_adj(src_graph.edge_index)[0].cpu().numpy()
-        tgt_adj = to_dense_adj(tgt_graph.edge_index)[0].cpu().numpy()
+        src_adj = to_dense_adj(src_graph.edge_index, max_num_nodes=src_graph.x.shape[0])[0].cpu().numpy()
+        tgt_adj = to_dense_adj(tgt_graph.edge_index, max_num_nodes=tgt_graph.x.shape[0])[0].cpu().numpy()
     
         num_class = self.num_classes
         num_nodes_src = src_graph.x.shape[0]

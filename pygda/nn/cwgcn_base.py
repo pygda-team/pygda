@@ -5,6 +5,8 @@ import torch.nn.functional as F
 from torch_geometric.nn import GCNConv, SAGEConv, GATConv, GINConv
 from torch.nn import Sequential, Linear
 
+from torch_geometric.nn import global_mean_pool
+
 
 class CWGCNBase(nn.Module):
     """
@@ -28,6 +30,8 @@ class CWGCNBase(nn.Module):
     gnn : string, optional
         The backbone of GNN model.
         Default: ``gcn``.
+    mode : str, optional
+        Mode for node or graph level tasks. Default: ``node``.
     **kwargs : optional
         Other parameters for the backbone.
     """
@@ -40,6 +44,7 @@ class CWGCNBase(nn.Module):
                  dropout=0.1,
                  act=F.relu,
                  gnn='gcn',
+                 mode='node',
                  **kwargs):
         super(CWGCNBase, self).__init__()
 
@@ -53,6 +58,7 @@ class CWGCNBase(nn.Module):
         self.dropout = dropout
         self.gnn = gnn
         self.act = act
+        self.mode = mode
 
         self.convs = nn.ModuleList()
 
@@ -62,49 +68,64 @@ class CWGCNBase(nn.Module):
             for _ in range(self.num_layers - 1):
                 self.convs.append(GCNConv(self.hid_dim, self.hid_dim))
 
-            self.cls = GCNConv(self.hid_dim, self.num_classes)
+            if self.mode == 'node':
+                self.cls = GCNConv(self.hid_dim, self.num_classes)
         elif self.gnn == 'sage':
             self.convs.append(SAGEConv(self.in_dim, self.hid_dim))
             
             for _ in range(self.num_layers - 1):
                 self.convs.append(SAGEConv(self.hid_dim, self.hid_dim))
 
-            self.cls = SAGEConv(self.hid_dim, self.num_classes)
+            if self.mode == 'node':
+                self.cls = SAGEConv(self.hid_dim, self.num_classes)
         elif self.gnn == 'gat':
             self.convs.append(GATConv(self.in_dim, self.hid_dim, heads=1, concat=False))
             
             for _ in range(self.num_layers - 1):
                 self.convs.append(GATConv(self.hid_dim, self.hid_dim, heads=1, concat=False))
 
-            self.cls = GATConv(self.hid_dim, self.num_classes, heads=1, concat=False)
+            if self.mode == 'node':
+                self.cls = GATConv(self.hid_dim, self.num_classes, heads=1, concat=False)
         elif self.gnn == 'gin':
             self.convs.append(GINConv(Sequential(Linear(self.in_dim, self.hid_dim)), train_eps=True))
 
             for _ in range(self.num_layers - 1):
                 self.convs.append(GINConv(Sequential(Linear(self.hid_dim, self.hid_dim)), train_eps=True))
 
-            self.cls = GINConv(Sequential(Linear(self.hid_dim, self.num_classes)), train_eps=True)
+            if self.mode == 'node':
+                self.cls = GINConv(Sequential(Linear(self.hid_dim, self.num_classes)), train_eps=True)
+        
+        if self.mode == 'graph':
+            self.cls = Linear(self.hid_dim, self.num_classes)
 
-            
-    def forward(self, x, edge_index, edge_weight=None):
-        x, x_list = self.feat_bottleneck(x, edge_index, edge_weight)
+    def forward(self, x, edge_index, edge_weight=None, batch=None):
+        x, x_list = self.feat_bottleneck(x, edge_index, edge_weight, batch)
         x = self.feat_classifier(x, edge_index, edge_weight)
 
         return x, x_list
     
-    def feat_bottleneck(self, x, edge_index, edge_weight=None):
+    def feat_bottleneck(self, x, edge_index, edge_weight=None, batch=None):
         x_list = []
         for i, conv in enumerate(self.convs):
             x = conv(x, edge_index, edge_weight)
             if i < len(self.convs) - 1:
                 x = self.act(x)
                 x = F.dropout(x, p=self.dropout, training=self.training)
-            x_list.append(x)
+            if self.mode == 'node':
+                x_list.append(x)
+            else:
+                x_list.append(global_mean_pool(x, batch))
+        
+        if self.mode == 'graph':
+            x = global_mean_pool(x, batch)
 
         return x, x_list
     
     def feat_classifier(self, x, edge_index, edge_weight=None):
-        x = self.cls(x, edge_index, edge_weight)
+        if self.mode == 'graph':
+            x = self.cls(x)
+        else:
+            x = self.cls(x, edge_index, edge_weight)
         
         return x
     

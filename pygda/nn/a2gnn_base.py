@@ -5,6 +5,8 @@ import torch.nn.functional as F
 from .prop_gcn_conv import PropGCNConv
 from .reverse_layer import GradReverse
 
+from torch_geometric.nn import global_mean_pool
+
 
 class A2GNNBase(nn.Module):
     """
@@ -25,6 +27,8 @@ class A2GNNBase(nn.Module):
     act : callable activation function or None, optional
         Activation function if not None.
         Default: ``torch.nn.functional.relu``.
+    mode : str, optional
+        Mode for node or graph level tasks. Default: ``node``.
     **kwargs : optional
         Other parameters for the backbone.
     """
@@ -37,6 +41,7 @@ class A2GNNBase(nn.Module):
                  adv=False,
                  dropout=0.1,
                  act=F.relu,
+                 mode='node',
                  **kwargs):
         super(A2GNNBase, self).__init__()
         
@@ -47,6 +52,7 @@ class A2GNNBase(nn.Module):
         self.adv = adv
         self.dropout = dropout
         self.act = act
+        self.mode = mode
 
         self.convs = nn.ModuleList()
 
@@ -55,28 +61,40 @@ class A2GNNBase(nn.Module):
         for _ in range(self.num_layers - 1):
             self.convs.append(PropGCNConv(self.hid_dim, self.hid_dim))
 
-        self.cls = PropGCNConv(self.hid_dim, self.num_classes)
+        if self.mode == 'node':
+            self.cls = PropGCNConv(self.hid_dim, self.num_classes)
+        else:
+            self.cls = nn.Linear(self.hid_dim, self.num_classes)
 
         if self.adv:
             self.domain_discriminator = nn.Linear(self.hid_dim, 2)
             
     def forward(self, data, prop_nums):
-        x, edge_index = data.x, data.edge_index
-        x = self.feat_bottleneck(x, edge_index, prop_nums=prop_nums)
-        x = self.feat_classifier(x, edge_index, prop_nums=1)
+        if self.mode == 'node':
+            x, edge_index, batch = data.x, data.edge_index, None
+        else:
+            x, edge_index, batch = data.x, data.edge_index, data.batch
+        x = self.feat_bottleneck(x, edge_index, batch, prop_nums=prop_nums)
+        x = self.feat_classifier(x, edge_index, batch, prop_nums=1)
 
         return x
     
-    def feat_bottleneck(self, x, edge_index, prop_nums=30):
+    def feat_bottleneck(self, x, edge_index, batch, prop_nums=30):
         for i, conv in enumerate(self.convs):
             x = conv(x, edge_index, prop_nums)
             x = self.act(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
+        
+        if self.mode == 'graph':
+            x = global_mean_pool(x, batch)
 
         return x
     
-    def feat_classifier(self, x, edge_index, prop_nums=1):
-        x = self.cls(x, edge_index, prop_nums)
+    def feat_classifier(self, x, edge_index, batch, prop_nums=1):
+        if self.mode == 'node':
+            x = self.cls(x, edge_index, prop_nums)
+        else:
+            x = self.cls(x)
         
         return x
     

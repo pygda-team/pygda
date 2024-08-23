@@ -6,7 +6,7 @@ import time
 
 import numpy as np
 
-from torch_geometric.loader import NeighborLoader
+from torch_geometric.loader import NeighborLoader, DataLoader
 
 from . import BaseGDA
 from ..nn import GRADEBase, GradReverse
@@ -26,6 +26,8 @@ class GRADE(BaseGDA):
         Hidden dimension of model.
     num_classes : int
         Total number of classes.
+    mode : str, optional
+        Mode for node or graph level tasks. Default: ``node``.
     num_layers : int, optional
         Total number of layers in model. Default: ``2``.
     dropout : float, optional
@@ -62,6 +64,7 @@ class GRADE(BaseGDA):
         in_dim,
         hid_dim,
         num_classes,
+        mode='node',
         num_layers=2,
         dropout=0.,
         act=F.relu,
@@ -69,7 +72,7 @@ class GRADE(BaseGDA):
         weight=0.01,
         weight_decay=0.01,
         lr=0.001,
-        epoch=100,
+        epoch=200,
         device='cuda:0',
         batch_size=0,
         num_neigh=-1,
@@ -94,6 +97,7 @@ class GRADE(BaseGDA):
         
         self.disc=disc
         self.weight=weight
+        self.mode=mode
 
     def init_model(self, **kwargs):
 
@@ -105,6 +109,7 @@ class GRADE(BaseGDA):
             dropout=self.dropout,
             act=self.act,
             disc=self.disc,
+            mode=self.mode,
             **kwargs
         ).to(self.device)
 
@@ -119,19 +124,28 @@ class GRADE(BaseGDA):
         domain_loss = 0
         if self.disc == 'JS':
             domain_preds = self.grade.discriminator(GradReverse.apply(torch.cat([source_feats, target_feats], dim=0), alpha))
-            domain_labels = np.array([0] * source_data.x.size(0) + [1] * target_data.x.size(0))
-            domain_labels = torch.tensor(domain_labels, requires_grad=False, dtype=torch.long, device=source_data.x.device)
+            if self.mode == 'node':
+                domain_labels = np.array([0] * source_data.x.size(0) + [1] * target_data.x.size(0))
+            else:
+                domain_labels = np.array([0] * len(source_data) + [1] * len(target_data))
+            domain_labels = torch.tensor(domain_labels, requires_grad=False, dtype=torch.long, device=self.device)
             domain_loss = self.grade.criterion(domain_preds, domain_labels)
         elif self.disc == 'MMD':
-            mind = min(source_data.x.size(0), target_data.x.size(0))
+            if self.mode == 'node':
+                mind = min(source_data.x.size(0), target_data.x.size(0))
+            else:
+                mind = min(len(source_data), len(target_data))
             domain_loss = MMD(source_feats[:mind], target_feats[:mind])
         elif self.disc == 'C':
             ratio = 8
             s_l_f = torch.cat([source_feats, ratio * self.grade.one_hot_embedding(source_data.y)], dim=1)
             t_l_f = torch.cat([target_feats, ratio * F.softmax(target_logits, dim=1)], dim=1)
             domain_preds = self.grade.discriminator(GradReverse.apply(torch.cat([s_l_f, t_l_f], dim=0), alpha))
-            domain_labels = np.array([0] * source_data.x.size(0) + [1] * target_data.x.size(0))
-            domain_labels = torch.tensor(domain_labels, requires_grad=False, dtype=torch.long, device=source_data.x.device)
+            if self.mode == 'node':
+                domain_labels = np.array([0] * source_data.x.size(0) + [1] * target_data.x.size(0))
+            else:
+                domain_labels = np.array([0] * len(source_data) + [1] * len(target_data))
+            domain_labels = torch.tensor(domain_labels, requires_grad=False, dtype=torch.long, device=self.device)
             domain_loss = self.grade.criterion(domain_preds, domain_labels)
 
         loss = loss + domain_loss * self.weight
@@ -139,23 +153,41 @@ class GRADE(BaseGDA):
         return loss, source_logits, target_logits
 
     def fit(self, source_data, target_data):
+        if self.mode == 'node':
+            self.num_source_nodes, _ = source_data.x.shape
+            self.num_target_nodes, _ = target_data.x.shape
 
-        if self.batch_size == 0:
-            self.source_batch_size = source_data.x.shape[0]
-            source_loader = NeighborLoader(source_data,
-                                self.num_neigh,
-                                batch_size=self.source_batch_size)
-            self.target_batch_size = target_data.x.shape[0]
-            target_loader = NeighborLoader(target_data,
-                                self.num_neigh,
-                                batch_size=self.target_batch_size)
+            if self.batch_size == 0:
+                self.source_batch_size = source_data.x.shape[0]
+                self.source_loader = NeighborLoader(
+                    source_data,
+                    self.num_neigh,
+                    batch_size=self.source_batch_size)
+                self.target_batch_size = target_data.x.shape[0]
+                self.target_loader = NeighborLoader(
+                    target_data,
+                    self.num_neigh,
+                    batch_size=self.target_batch_size)
+            else:
+                self.source_loader = NeighborLoader(
+                    source_data,
+                    self.num_neigh,
+                    batch_size=self.batch_size)
+                self.target_loader = NeighborLoader(
+                    target_data,
+                    self.num_neigh,
+                    batch_size=self.batch_size)
+        elif self.mode == 'graph':
+            if self.batch_size == 0:
+                num_source_graphs = len(source_data)
+                num_target_graphs = len(target_data)
+                self.source_loader = DataLoader(source_data, batch_size=num_source_graphs, shuffle=True)
+                self.target_loader = DataLoader(target_data, batch_size=num_target_graphs, shuffle=True)
+            else:
+                self.source_loader = DataLoader(source_data, batch_size=self.batch_size, shuffle=True)
+                self.target_loader = DataLoader(target_data, batch_size=self.batch_size, shuffle=True)
         else:
-            source_loader = NeighborLoader(source_data,
-                                self.num_neigh,
-                                batch_size=self.batch_size)
-            target_loader = NeighborLoader(target_data,
-                                self.num_neigh,
-                                batch_size=self.batch_size)
+            assert self.mode in ('graph', 'node'), 'Invalid train mode'
 
         self.grade = self.init_model(**self.kwargs)
 
@@ -174,8 +206,11 @@ class GRADE(BaseGDA):
 
             alpha = 2 / (1 + np.exp(- 10 * epoch / self.epoch)) - 1
 
-            for idx, (sampled_source_data, sampled_target_data) in enumerate(zip(source_loader, target_loader)):
+            for idx, (sampled_source_data, sampled_target_data) in enumerate(zip(self.source_loader, self.target_loader)):
                 self.grade.train()
+
+                sampled_source_data = sampled_source_data.to(self.device)
+                sampled_target_data = sampled_target_data.to(self.device)
                 
                 loss, source_logits, target_logits = self.forward_model(sampled_source_data, sampled_target_data, alpha)
                 epoch_loss += loss.item()
@@ -185,9 +220,9 @@ class GRADE(BaseGDA):
                 optimizer.step()
 
                 if idx == 0:
-                    epoch_source_logits, epoch_source_labels = self.predict(sampled_source_data)
+                    epoch_source_logits, epoch_source_labels = source_logits, sampled_source_data.y
                 else:
-                    source_logits, source_labels = self.predict(sampled_source_data)
+                    source_logits, source_labels = source_logits, sampled_source_data.y
                     epoch_source_logits = torch.cat((epoch_source_logits, source_logits))
                     epoch_source_labels = torch.cat((epoch_source_labels, source_labels))
             
@@ -204,10 +239,32 @@ class GRADE(BaseGDA):
     def process_graph(self, data):
         pass
 
-    def predict(self, data):
+    def predict(self, data, source=False):
         self.grade.eval()
 
-        with torch.no_grad():
-            logits, _ = self.grade(data)
+        if source:
+            for idx, sampled_data in enumerate(self.source_loader):
+                sampled_data = sampled_data.to(self.device)
+                with torch.no_grad():
+                    logits, _ = self.grade(sampled_data)
 
-        return logits, data.y
+                    if idx == 0:
+                        logits, labels = logits, sampled_data.y
+                    else:
+                        sampled_logits, sampled_labels = logits, sampled_data.y
+                        logits = torch.cat((logits, sampled_logits))
+                        labels = torch.cat((labels, sampled_labels))
+        else:
+            for idx, sampled_data in enumerate(self.target_loader):
+                sampled_data = sampled_data.to(self.device)
+                with torch.no_grad():
+                    logits, _ = self.grade(sampled_data)
+
+                    if idx == 0:
+                        logits, labels = logits, sampled_data.y
+                    else:
+                        sampled_logits, sampled_labels = logits, sampled_data.y
+                        logits = torch.cat((logits, sampled_logits))
+                        labels = torch.cat((labels, sampled_labels))
+
+        return logits, labels

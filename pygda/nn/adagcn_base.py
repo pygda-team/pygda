@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from torch_geometric.nn import GCNConv
 
 from .ppmi_conv import PPMIConv
+from torch_geometric.nn import global_mean_pool
 
 
 class GNN(torch.nn.Module):
@@ -30,12 +31,15 @@ class GNN(torch.nn.Module):
         
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x, edge_index):
+    def forward(self, x, edge_index, batch, mode='node'):
         for i, conv_layer in enumerate(self.conv_layers):
             x = conv_layer(x, edge_index)
             if i < len(self.conv_layers) - 1:
                 x = self.act(x)
                 x = self.dropout(x)
+        
+        if mode == 'graph':
+            x = global_mean_pool(x, batch)
         
         return x
 
@@ -61,8 +65,8 @@ class AdaGCNBase(nn.Module):
         Default: ``torch.nn.functional.relu``.
     gnn_type: string, optional
         Use GCN or PPMIConv. Default: ``gcn``.
-    adv_dim : int, optional
-        Hidden dimension of adversarial module. Default: ``40``.
+    mode : str, optional
+        Mode for node or graph level tasks. Default: ``node``.
     **kwargs : optional
         Other parameters for the backbone.
     """
@@ -75,18 +79,23 @@ class AdaGCNBase(nn.Module):
                  dropout=0.1,
                  act=F.relu,
                  gnn_type='gcn',
-                 adv_dim=40,
+                 mode='node',
                  **kwargs):
         super(AdaGCNBase, self).__init__()
 
         self.encoder = GNN(in_dim=in_dim, hid_dim=hid_dim, gnn_type=gnn_type, act=act, num_layers=num_layers)
         
         self.cls_model = nn.Sequential(nn.Linear(hid_dim, num_classes))
+
+        self.mode = mode
         
         self.loss_func = nn.CrossEntropyLoss()
     
     def forward(self, data):
-        x, edge_index = data.x, data.edge_index
-        x = self.encoder(x, edge_index)
+        if self.mode == 'node':
+            x, edge_index, batch = data.x, data.edge_index, None
+        else:
+            x, edge_index, batch = data.x, data.edge_index, data.batch
+        x = self.encoder(x, edge_index, batch, mode=self.mode)
 
         return x

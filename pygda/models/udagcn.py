@@ -5,12 +5,15 @@ import itertools
 import time
 
 from torch_geometric.loader import NeighborLoader
+from torch_geometric.loader import DataLoader
 
 from . import BaseGDA
 from ..nn import UDAGCNBase
 from ..nn import GradReverse
 from ..utils import logger
 from ..metrics import eval_macro_f1, eval_micro_f1
+
+from torch_geometric.nn import global_mean_pool
 
 
 class UDAGCN(BaseGDA):
@@ -25,6 +28,8 @@ class UDAGCN(BaseGDA):
         Hidden dimension of model.
     num_classes : int
         Total number of classes.
+    mode : str, optional
+        Mode for node or graph level tasks. Default: ``node``.
     num_layers : int, optional
         Total number of layers in model. Default: ``3``.
     dropout : float, optional
@@ -61,14 +66,15 @@ class UDAGCN(BaseGDA):
         in_dim,
         hid_dim,
         num_classes,
-        num_layers=3,
+        mode='node',
+        num_layers=2,
         dropout=0.,
         act=F.relu,
         ppmi=True,
         adv_dim=40,
         weight_decay=3e-3,
         lr=4e-3,
-        epoch=200,
+        epoch=300,
         device='cuda:0',
         batch_size=0,
         num_neigh=-1,
@@ -93,6 +99,7 @@ class UDAGCN(BaseGDA):
         
         self.ppmi=ppmi
         self.adv_dim=adv_dim
+        self.mode=mode
 
     def init_model(self, **kwargs):
 
@@ -111,6 +118,11 @@ class UDAGCN(BaseGDA):
     def forward_model(self, source_data, target_data, alpha, epoch):
         encoded_source = self.udagcn.encode(source_data, "source")
         encoded_target = self.udagcn.encode(target_data, "target")
+
+        if self.mode == 'graph':
+            encoded_source = global_mean_pool(encoded_source, source_data.batch)
+            encoded_target = global_mean_pool(encoded_target, target_data.batch)
+
         source_logits = self.udagcn.cls_model(encoded_source)
 
         # use source classifier loss:
@@ -143,25 +155,41 @@ class UDAGCN(BaseGDA):
         return loss, source_logits, target_logits
 
     def fit(self, source_data, target_data):
-        self.num_source_nodes, _ = source_data.x.shape
-        self.num_target_nodes, _ = target_data.x.shape
+        if self.mode == 'node':
+            self.num_source_nodes, _ = source_data.x.shape
+            self.num_target_nodes, _ = target_data.x.shape
 
-        if self.batch_size == 0:
-            self.source_batch_size = source_data.x.shape[0]
-            source_loader = NeighborLoader(source_data,
-                                self.num_neigh,
-                                batch_size=self.source_batch_size)
-            self.target_batch_size = target_data.x.shape[0]
-            target_loader = NeighborLoader(target_data,
-                                self.num_neigh,
-                                batch_size=self.target_batch_size)
+            if self.batch_size == 0:
+                self.source_batch_size = source_data.x.shape[0]
+                self.source_loader = NeighborLoader(
+                    source_data,
+                    self.num_neigh,
+                    batch_size=self.source_batch_size)
+                self.target_batch_size = target_data.x.shape[0]
+                self.target_loader = NeighborLoader(
+                    target_data,
+                    self.num_neigh,
+                    batch_size=self.target_batch_size)
+            else:
+                self.source_loader = NeighborLoader(
+                    source_data,
+                    self.num_neigh,
+                    batch_size=self.batch_size)
+                self.target_loader = NeighborLoader(
+                    target_data,
+                    self.num_neigh,
+                    batch_size=self.batch_size)
+        elif self.mode == 'graph':
+            if self.batch_size == 0:
+                num_source_graphs = len(source_data)
+                num_target_graphs = len(target_data)
+                self.source_loader = DataLoader(source_data, batch_size=num_source_graphs, shuffle=True)
+                self.target_loader = DataLoader(target_data, batch_size=num_target_graphs, shuffle=True)
+            else:
+                self.source_loader = DataLoader(source_data, batch_size=self.batch_size, shuffle=True)
+                self.target_loader = DataLoader(target_data, batch_size=self.batch_size, shuffle=True)
         else:
-            source_loader = NeighborLoader(source_data,
-                                self.num_neigh,
-                                batch_size=self.batch_size)
-            target_loader = NeighborLoader(target_data,
-                                self.num_neigh,
-                                batch_size=self.batch_size)
+            assert self.mode in ('graph', 'node'), 'Invalid train mode'
 
         self.udagcn = self.init_model(**self.kwargs)
 
@@ -182,9 +210,12 @@ class UDAGCN(BaseGDA):
 
             alpha = min((epoch + 1) / self.epoch, 0.05)
 
-            for idx, (sampled_source_data, sampled_target_data) in enumerate(zip(source_loader, target_loader)):
+            for idx, (sampled_source_data, sampled_target_data) in enumerate(zip(self.source_loader, self.target_loader)):
                 for model in self.udagcn.models:
                     model.train()
+
+                sampled_source_data = sampled_source_data.to(self.device)
+                sampled_target_data = sampled_target_data.to(self.device)
                 
                 loss, source_logits, target_logits = self.forward_model(sampled_source_data, sampled_target_data, alpha, epoch)
                 epoch_loss += loss.item()
@@ -216,12 +247,38 @@ class UDAGCN(BaseGDA):
     def predict(self, data, source=False):
         for model in self.udagcn.models:
             model.eval()
+        
+        if source:
+            for idx, sampled_data in enumerate(self.source_loader):
+                sampled_data = sampled_data.to(self.device)
+                with torch.no_grad():
+                    encoded_data = self.udagcn.encode(sampled_data, 'source')
 
-        with torch.no_grad():
-            if source:
-                encoded_data = self.udagcn.encode(data, 'source')
-            else:
-                encoded_data = self.udagcn.encode(data, 'target')
-            logits = self.udagcn.cls_model(encoded_data)
+                    if self.mode == 'graph':
+                        encoded_data = global_mean_pool(encoded_data, sampled_data.batch)
+                    logits = self.udagcn.cls_model(encoded_data)
 
-        return logits, data.y
+                    if idx == 0:
+                        logits, labels = logits, sampled_data.y
+                    else:
+                        sampled_logits, sampled_labels = logits, sampled_data.y
+                        logits = torch.cat((logits, sampled_logits))
+                        labels = torch.cat((labels, sampled_labels))
+        else:
+            for idx, sampled_data in enumerate(self.target_loader):
+                sampled_data = sampled_data.to(self.device)
+                with torch.no_grad():
+                    encoded_data = self.udagcn.encode(sampled_data, 'target')
+
+                    if self.mode == 'graph':
+                        encoded_data = global_mean_pool(encoded_data, sampled_data.batch)
+                    logits = self.udagcn.cls_model(encoded_data)
+
+                    if idx == 0:
+                        logits, labels = logits, sampled_data.y
+                    else:
+                        sampled_logits, sampled_labels = logits, sampled_data.y
+                        logits = torch.cat((logits, sampled_logits))
+                        labels = torch.cat((labels, sampled_labels))
+
+        return logits, labels
