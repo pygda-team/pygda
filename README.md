@@ -30,9 +30,9 @@ logits, labels = model.predict(target_data)
 We support graph-level domain adaptation task.
 - 7 models including `A2GNN`, `AdaGCN`, `CWGCN`, `DANE`, `GRADE`, `SAGDA`, `UDAGCN` are supported.
 - Various TUDatasets are supported including `FRANKENSTEIN`, `Mutagenicity` and `PROTEINS`.
-- Only add one parameters to the model to conduct graph level domain adaptation task as follows:
+- To perform a graph-level domain adaptation task, only one parameter is added to the model as follows:
 ```
-model = A2GNN(in_dim=num_features, hid_dim=args.nhid, num_classes=num_classes, device=args.device, mode='graph')
+model = A2GNN(in_dim=num_features, hid_dim=args.nhid, num_classes=num_classes, mode='graph', device=args.device)
 ```
 
 
