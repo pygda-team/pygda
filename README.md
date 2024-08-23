@@ -26,6 +26,11 @@ logits, labels = model.predict(target_data)
 * **Scalable architecture that efficiently handles large graph datasets through mini-batching and sampling techniques.**
 * **Seamlessly integrated data processing with PyG, ensuring full compatibility with PyG data structures.**
 
+## :loudspeaker: What's New?
+We support graph-level domain adaptation tasks.
+- 7 models including `A2GNN`, `AdaGCN`, `CWGCN`, `DANE`, `GRADE`, `SAGDA`, `UDAGCN` are supported.
+- Various TUDatasets are supported including `FRANKENSTEIN`, `Mutagenicity` and `PROTEINS`.
+
 ## Installation
 Note: PyGDA depends on [PyTorch](https://pytorch.org/), [PyG](https://pytorch-geometric.readthedocs.io/en/latest/), [PyTorch Sparse](https://github.com/rusty1s/pytorch_sparse) and [Pytorch Scatter](https://github.com/rusty1s/pytorch_scatter). PyGDA does not automatically install these libraries for you. Please install them separately in order to run PyGDA successfully.
 
