@@ -90,5 +90,5 @@ watchdog==4.0.0
     # via mkdocs
 wheel==0.43.0
     # via astunparse
-zipp==3.18.1
+zipp==3.19.1
     # via importlib-metadata

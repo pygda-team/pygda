@@ -35,7 +35,7 @@ parser.add_argument('--filename', type=str, default='test.txt', help='store resu
 
 # model specific params
 parser.add_argument('--gnn', type=str, default='gcn', help='GNN backbone')
-parser.add_argument('--mode', type=str, default='unsup', help='unsupervised or semi-supervised')
+parser.add_argument('--train_mode', type=str, default='unsup', help='unsupervised or semi-supervised')
 parser.add_argument('--k', type=int, default=5, help='number of negative samples')
 parser.add_argument('--tgt_rate', type=float, default=0.05, help='target graph rate of labeled nodes')
 
@@ -105,7 +105,7 @@ model = DANE(
     epoch=args.epochs,
     device=args.device,
     gnn=args.gnn,
-    mode=args.mode,
+    train_mode=args.train_mode,
     tgt_rate=args.tgt_rate,
     k=args.k
     )
