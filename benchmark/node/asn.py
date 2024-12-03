@@ -126,15 +126,13 @@ model.fit(source_data, target_data)
 # evaluate the performance
 logits, labels = model.predict(target_data)
 
-maxvalue, maxindex = torch.max(logits, dim=1)
-
 preds = logits.argmax(dim=1)
 
 mi_f1 = eval_micro_f1(labels, preds)
 ma_f1 = eval_macro_f1(labels, preds)
 
 if args.source in {'DE', 'EN', 'ES', 'FR', 'PT', 'RU'}:
-    auc = eval_roc_auc(labels, maxvalue)
+    auc = eval_roc_auc(labels, logits[:, 1])
 else:
     auc = 0.0
 

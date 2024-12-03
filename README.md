@@ -130,13 +130,11 @@ In addition to the easy application of existing GDA models, PyGDA makes it simpl
 If you compare with, build on, or use aspects of PyGDA, please consider citing "[Revisiting, Benchmarking and Understanding Unsupervised Graph Domain Adaptation](https://arxiv.org/abs/2407.11052)":
 
 ```
-@misc{liu2024pydga,
-      title={Revisiting, Benchmarking and Understanding Unsupervised Graph Domain Adaptation}, 
-      author={Meihan Liu and Zhen Zhang and Jiachen Tang and Jiajun Bu and Bingsheng He and Sheng Zhou},
-      year={2024},
-      eprint={2407.11052},
-      archivePrefix={arXiv},
-      primaryClass={cs.LG},
-      url={https://arxiv.org/abs/2407.11052}, 
+@inproceedings{liu2024revisiting,
+title={Revisiting, Benchmarking and Understanding Unsupervised Graph Domain Adaptation},
+author={Meihan Liu and Zhen Zhang and Jiachen Tang and Jiajun Bu and Bingsheng He and Sheng Zhou},
+booktitle={The Thirty-eight Conference on Neural Information Processing Systems Datasets and Benchmarks Track},
+year={2024},
+url={https://openreview.net/forum?id=ZsyFwzuDzD}
 }
 ```

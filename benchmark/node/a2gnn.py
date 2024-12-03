@@ -26,9 +26,9 @@ parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
 parser.add_argument('--weight_decay', type=float, default=0.0, help='weight decay')
 parser.add_argument('--nhid', type=int, default=128, help='hidden size')
 parser.add_argument('--dropout_ratio', type=float, default=0.1, help='dropout ratio')
-parser.add_argument('--device', type=str, default='cuda:1', help='specify cuda devices')
-parser.add_argument('--source', type=str, default='MAG_CN', help='source domain data, DBLPv7/ACMv9/Citationv1')
-parser.add_argument('--target', type=str, default='MAG_US', help='target domain data, DBLPv7/ACMv9/Citationv1')
+parser.add_argument('--device', type=str, default='cuda:0', help='specify cuda devices')
+parser.add_argument('--source', type=str, default='DE', help='source domain data, DBLPv7/ACMv9/Citationv1')
+parser.add_argument('--target', type=str, default='EN', help='target domain data, DBLPv7/ACMv9/Citationv1')
 parser.add_argument('--epochs', type=int, default=800, help='maximum number of epochs')
 parser.add_argument('--filename', type=str, default='test.txt', help='store results into file')
 
@@ -122,15 +122,13 @@ model.fit(source_data, target_data)
 # evaluate the performance
 logits, labels = model.predict(target_data)
 
-maxvalue, maxindex = torch.max(logits, dim=1)
-
 preds = logits.argmax(dim=1)
 
 mi_f1 = eval_micro_f1(labels, preds)
 ma_f1 = eval_macro_f1(labels, preds)
 
 if args.source in {'DE', 'EN', 'ES', 'FR', 'PT', 'RU'}:
-    auc = eval_roc_auc(labels, maxvalue)
+    auc = eval_roc_auc(labels, logits[:, 1])
 else:
     auc = 0.0
 

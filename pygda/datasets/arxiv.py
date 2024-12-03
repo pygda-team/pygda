@@ -31,7 +31,7 @@ class ArxivDataset(InMemoryDataset):
     
     @property
     def raw_file_names(self):
-        return ["data.pt"]
+        return ["*.pkl"]
 
     @property
     def processed_file_names(self):
@@ -41,10 +41,16 @@ class ArxivDataset(InMemoryDataset):
         pass
     
     def process(self):
-        path = osp.join(self.raw_dir, 'data.pt')
-        graph = torch.load(path)
-        x, edge_index, y = graph.x, graph.edge_index, graph.y
-        
+        path = osp.join(self.raw_dir, '{}.pkl'.format(self.name))
+        dataset = pkl.load(open(path, 'rb'))
+
+        edge_index = dataset.graph['edge_index']
+        features = dataset.graph['node_feat']
+        label = dataset.label
+
+        x = features.to(torch.float)
+        y = label.squeeze().to(torch.int64)
+
         data_list = []
         data = Data(edge_index=edge_index, x=x, y=y)
 
