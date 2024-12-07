@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/pygda-team/pygda/issues)
 
-PyGDA is a **Python library** for **Graph Domain Adaptation** built upon [PyTorch](https://pytorch.org/) and [PyG](https://pytorch-geometric.readthedocs.io/en/latest/) to easily train graph domain adaptation models in a [sklearn](https://scikit-learn.org/stable/) style. PyGDA includes **15+** graph domain adaptation models. See examples with PyGDA below!
+PyGDA is a **Python library** for **Graph Domain Adaptation** built upon [PyTorch](https://pytorch.org/) and [PyG](https://pytorch-geometric.readthedocs.io/en/latest/) to easily train graph domain adaptation models in a [sklearn](https://scikit-learn.org/stable/) style. PyGDA includes **20+** graph domain adaptation models. See examples with PyGDA below!
 
 **Graph Domain Adaptation Using PyGDA with 5 Lines of Code**
 ```
@@ -23,16 +23,19 @@ model.fit(source_data, target_data)
 logits, labels = model.predict(target_data)
 ```
 **PyGDA is featured for:**
+
 * **Consistent APIs and comprehensive documentation.**
-* **Cover 15+ graph domain adaptation models.**
+* **Cover 20+ graph domain adaptation models.**
 * **Scalable architecture that efficiently handles large graph datasets through mini-batching and sampling techniques.**
 * **Seamlessly integrated data processing with PyG, ensuring full compatibility with PyG data structures.**
 
-## :loudspeaker: What's New?
+## What's New?
 **[12/2024]**. We now support source-free setting of graph domain adaptation.
+
 - 3 recent models including `GTrans`, `SOGA` and `GraphCTA` are supported.
 
 **[08/2024]**. We support graph-level domain adaptation task.
+
 - 7 models including `A2GNN`, `AdaGCN`, `CWGCN`, `DANE`, `GRADE`, `SAGDA`, `UDAGCN` are supported.
 - Various TUDatasets are supported including `FRANKENSTEIN`, `Mutagenicity` and `PROTEINS`.
 - To perform a graph-level domain adaptation task, only one parameter is added to the model as follows:
@@ -111,15 +114,15 @@ In addition to the easy application of existing GDA models, PyGDA makes it simpl
 
 | **ID** | **Paper** | **Method** | **Venue** |
 |--------|---------|:----------:|:--------------:|
-| 1      | [Semi-Supervised Classification with Graph Convolutional Networks](https://arxiv.org/abs/1609.02907)      |    Vanilla GCN     |   ICLR 2017    |
-| 2      | [DANE: Domain Adaptive Network Embedding](https://www.ijcai.org/proceedings/2019/606)      |    DANE     |   IJCAI 2019    |
-| 3      | [Adversarial Deep Network Embedding for Cross-network Node Classification](https://arxiv.org/abs/2002.07366) |    ACDNE     |   AAAI 2020    |
-| 4      | [Unsupervised Domain Adaptive Graph Convolutional Networks](https://dl.acm.org/doi/10.1145/3366423.3380219)  |   UDAGCN   |    WWW 2020    |
-| 5      | [Adversarial Separation Network for Cross-Network Node Classification](https://dl.acm.org/doi/abs/10.1145/3459637.3482228)  |    ASN    |  CIKM 2021  |
-| 6      | [Graph Transfer Learning via Adversarial Domain Adaptation with Graph Convolution](https://arxiv.org/abs/1909.01541)  |    AdaGCN    | TKDE 2022 |
-| 7      | [Non-IID Transfer Learning on Graphs](https://ojs.aaai.org/index.php/AAAI/article/view/26231)  |  GRADE   |   AAAI 2023    |
-| 8      | [Graph Domain Adaptation via Theory-Grounded Spectral Regularization](https://openreview.net/forum?id=OysfLgrk8mk)  |   SpecReg    |   ICLR 2023    |
-| 9      | [Structural Re-weighting Improves Graph Domain Adaptation](https://arxiv.org/abs/2306.03221) |   StruRW    |    ICML 2023    |
+| 01      | [Semi-Supervised Classification with Graph Convolutional Networks](https://arxiv.org/abs/1609.02907)      |    Vanilla GCN     |   ICLR 2017    |
+| 02      | [DANE: Domain Adaptive Network Embedding](https://www.ijcai.org/proceedings/2019/606)      |    DANE     |   IJCAI 2019    |
+| 03      | [Adversarial Deep Network Embedding for Cross-network Node Classification](https://arxiv.org/abs/2002.07366) |    ACDNE     |   AAAI 2020    |
+| 04      | [Unsupervised Domain Adaptive Graph Convolutional Networks](https://dl.acm.org/doi/10.1145/3366423.3380219)  |   UDAGCN   |    WWW 2020    |
+| 05      | [Adversarial Separation Network for Cross-Network Node Classification](https://dl.acm.org/doi/abs/10.1145/3459637.3482228)  |    ASN    |  CIKM 2021  |
+| 06      | [Graph Transfer Learning via Adversarial Domain Adaptation with Graph Convolution](https://arxiv.org/abs/1909.01541)  |    AdaGCN    | TKDE 2022 |
+| 07      | [Non-IID Transfer Learning on Graphs](https://ojs.aaai.org/index.php/AAAI/article/view/26231)  |  GRADE   |   AAAI 2023    |
+| 08      | [Graph Domain Adaptation via Theory-Grounded Spectral Regularization](https://openreview.net/forum?id=OysfLgrk8mk)  |   SpecReg    |   ICLR 2023    |
+| 09      | [Structural Re-weighting Improves Graph Domain Adaptation](https://arxiv.org/abs/2306.03221) |   StruRW    |    ICML 2023    |
 | 10      | [Improving Graph Domain Adaptation with Network Hierarchy](https://dl.acm.org/doi/10.1145/3583780.3614928)  | JHGDA |  CIKM 2023  |
 | 11     | [Bridged-GNN: Knowledge Bridge Learning for Effective Knowledge Transfer](https://dl.acm.org/doi/10.1145/3583780.3614796)  |    KBL     |    CIKM 2023    |
 | 12     | [Domain-adaptive Message Passing Graph Neural Network](https://www.sciencedirect.com/science/article/abs/pii/S0893608023002253)  |   DMGNN    |    NN 2023    |
