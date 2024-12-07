@@ -1,5 +1,6 @@
 *.pyc
-test.py
+testg.py
+testn.py
 data/*
 !data/README.md
 bench/

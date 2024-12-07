@@ -16,6 +16,9 @@ from .sagda import SAGDA
 from .cwgcn import CWGCN
 from .dmgnn import DMGNN
 from .pa import PairAlign
+from .soga import SOGA
+from .gtrans import GTrans
+from .graphcta import GraphCTA
 
 
 __all__ = [
@@ -36,5 +39,8 @@ __all__ = [
     "SAGDA",
     "CWGCN",
     "DMGNN",
-    "PairAlign"
+    "PairAlign",
+    "SOGA",
+    "GTrans",
+    "GraphCTA"
 ]

@@ -20,6 +20,7 @@ from .deepwalk_pretrain import DWPretrain
 from .sagda_base import SAGDABase
 from .cwgcn_base import CWGCNBase
 from .reweight_gnn import ReweightGNN
+from .soga_base import SOGABase
 
 
 __all__ = [
@@ -44,5 +45,6 @@ __all__ = [
     "DWPretrain",
     "SAGDABase",
     "CWGCNBase",
-    "ReweightGNN"
+    "ReweightGNN",
+    "SOGABase"
 ]
