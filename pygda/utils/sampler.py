@@ -14,11 +14,35 @@ import networkx as nx
 
 
 class RandomWalker:
+    """
+    Random walk generator for graph sampling with node2vec strategy.
+
+    Parameters
+    ----------
+    G : networkx.Graph
+        Input graph for random walks
+    p : float, optional
+        Return parameter controlling likelihood of revisiting nodes. Default: 1
+    q : float, optional
+        In-out parameter for differentiating between inward and outward nodes. Default: 1
+    use_rejection_sampling : int, optional
+        Whether to use rejection sampling strategy. Default: 0
+
+    Notes
+    -----
+    Features:
+
+    - Biased random walks
+    - Flexible walk strategies
+    - Efficient sampling
+    - Parallel processing support
+    """
+
     def __init__(self, G, p=1, q=1, use_rejection_sampling=0):
         """
         :param G:
         :param p: Return parameter,controls the likelihood of immediately revisiting a node in the walk.
-        :param q: In-out parameter,allows the search to differentiate between “inward” and “outward” nodes
+        :param q: In-out parameter,allows the search to differentiate between "inward" and "outward" nodes
         :param use_rejection_sampling: Whether to use the rejection sampling strategy in node2vec.
         """
         self.G = G
@@ -27,6 +51,30 @@ class RandomWalker:
         self.use_rejection_sampling = use_rejection_sampling
 
     def node2vec_walk(self, walk_length, start_node):
+        """
+        Generate node2vec walk using alias sampling.
+
+        Parameters
+        ----------
+        walk_length : int
+            Length of random walk
+        start_node : int
+            Starting node for walk
+
+        Returns
+        -------
+        list
+            Sequence of nodes in walk
+
+        Notes
+        -----
+        Processing Steps:
+
+        - Initialize walk from start node
+        - Sample neighbors using alias tables
+        - Handle transition probabilities
+        - Build walk sequence
+        """
 
         G = self.G
         alias_nodes = self.alias_nodes
@@ -54,9 +102,28 @@ class RandomWalker:
 
     def node2vec_walk2(self, walk_length, start_node):
         """
-        Reference:
-        KnightKing: A Fast Distributed Graph Random Walk Engine
-        http://madsys.cs.tsinghua.edu.cn/publications/SOSP19-yang.pdf
+        Generate node2vec walk using rejection sampling.
+
+        Parameters
+        ----------
+        walk_length : int
+            Length of random walk
+        start_node : int
+            Starting node for walk
+
+        Returns
+        -------
+        list
+            Sequence of nodes in walk
+
+        Notes
+        -----
+        Processing Steps:
+
+        - Calculate rejection bounds
+        - Sample transitions
+        - Apply rejection criteria
+        - Build walk sequence
         """
 
         def rejection_sample(inv_p, inv_q, nbrs_num):
@@ -106,6 +173,34 @@ class RandomWalker:
         return walk
 
     def simulate_walks(self, num_walks, walk_length, workers=1, verbose=0):
+        """
+        Generate multiple random walks.
+
+        Parameters
+        ----------
+        num_walks : int
+            Number of walks per node
+        walk_length : int
+            Length of each walk
+        workers : int, optional
+            Number of parallel workers. Default: 1
+        verbose : int, optional
+            Verbosity level. Default: 0
+
+        Returns
+        -------
+        list
+            List of generated walks
+
+        Notes
+        -----
+        Processing Steps:
+
+        - Get list of nodes
+        - Generate walks for each node
+        - Handle parallel processing
+        - Collect results
+        """
 
         G = self.G
 
@@ -133,10 +228,28 @@ class RandomWalker:
 
     def get_alias_edge(self, t, v):
         """
-        compute unnormalized transition probability between nodes v and its neighbors give the previous visited node t.
-        :param t:
-        :param v:
-        :return:
+        Compute transition probabilities between nodes.
+
+        Parameters
+        ----------
+        t : int
+            Previous node in walk
+        v : int
+            Current node in walk
+
+        Returns
+        -------
+        tuple
+            Alias table for edge transitions
+
+        Notes
+        -----
+        Processing Steps:
+
+        - Calculate unnormalized probabilities
+        - Apply p,q parameters
+        - Normalize probabilities
+        - Create alias table
         """
         G = self.G
         p = self.p
@@ -184,6 +297,24 @@ class RandomWalker:
         return
 
 class Negative_Sampler():
+    """
+    Negative sample generator using alias method.
+
+    Parameters
+    ----------
+    G : networkx.Graph
+        Input graph for sampling
+
+    Notes
+    -----
+    Features:
+
+    - Degree-based sampling
+    - Efficient alias tables
+    - Graph construction
+    - Memory efficient
+    """
+
     def __init__(self, G):
         self.G = G
         _probs = [G.degree(i) for i in G.nodes()]
@@ -213,6 +344,23 @@ class Negative_Sampler():
         del L, H
 
     def sample(self):
+        """
+        Generate single negative sample.
+
+        Returns
+        -------
+        int
+            Sampled node index
+
+        Notes
+        -----
+        Processing Steps:
+
+        - Random index selection
+        - Alias table lookup
+        - Probability comparison
+        - Return sample
+        """
         idx  = randrange(self.num)
         if random.random() < self.probs_table[idx]:
             return idx
@@ -220,6 +368,28 @@ class Negative_Sampler():
             return self.bi_table[idx]
 
     def construct_graph_origin(self, G):
+        """
+        Construct new graph from random walks.
+
+        Parameters
+        ----------
+        G : networkx.Graph
+            Input graph
+
+        Returns
+        -------
+        networkx.Graph
+            Constructed graph from walks
+
+        Notes
+        -----
+        Processing Steps:
+
+        - Initialize new graph
+        - Generate random walks
+        - Add edges with weights
+        - Update node degrees
+        """
         new_G = nx.Graph()
         new_G.graph['degree'] = 0
         dq = deque()
@@ -253,9 +423,26 @@ class Negative_Sampler():
 
 def create_alias_table(area_ratio):
     """
+    Create alias table for efficient sampling.
 
-    :param area_ratio: sum(area_ratio)=1
-    :return: accept,alias
+    Parameters
+    ----------
+    area_ratio : list
+        Probability distribution (must sum to 1)
+
+    Returns
+    -------
+    tuple
+        Accept probabilities and alias indices
+
+    Notes
+    -----
+    Processing Steps:
+
+    - Initialize tables
+    - Split into small/large probabilities
+    - Balance probabilities
+    - Create lookup tables
     """
     l = len(area_ratio)
     accept, alias = [0] * l, [0] * l
@@ -289,10 +476,27 @@ def create_alias_table(area_ratio):
 
 def alias_sample(accept, alias):
     """
+    Sample from alias table.
 
-    :param accept:
-    :param alias:
-    :return: sample index
+    Parameters
+    ----------
+    accept : list
+        Accept probabilities
+    alias : list
+        Alias indices
+
+    Returns
+    -------
+    int
+        Sampled index
+
+    Notes
+    -----
+    Processing Steps:
+
+    - Generate random index
+    - Compare with accept probability
+    - Return sampled index
     """
     N = len(accept)
     i = int(np.random.random()*N)
@@ -303,6 +507,29 @@ def alias_sample(accept, alias):
         return alias[i]
 
 def partition_num(num, workers):
+    """
+    Partition number for parallel processing.
+
+    Parameters
+    ----------
+    num : int
+        Total number to partition
+    workers : int
+        Number of workers
+
+    Returns
+    -------
+    list
+        Partitioned numbers per worker
+
+    Notes
+    -----
+    Processing Steps:
+
+    - Calculate base partition
+    - Handle remainder
+    - Return distribution
+    """
     if num % workers == 0:
         return [num//workers]*workers
     else:

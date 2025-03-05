@@ -122,6 +122,19 @@ class ASN(BaseGDA):
         self.step=step
 
     def init_model(self, **kwargs):
+        """
+        Initialize the ASN model.
+
+        Parameters
+        ----------
+        **kwargs
+            Other parameters for the ASNBase model.
+
+        Returns
+        -------
+        ASNBase
+            Initialized ASN model on the specified device.
+        """
 
         return ASNBase(
             in_dim=self.in_dim,
@@ -136,9 +149,42 @@ class ASN(BaseGDA):
         ).to(self.device)
 
     def forward_model(self, source_data, target_data):
+        """
+        Forward pass of the model.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+        """
         pass
 
     def fit(self, source_data, target_data):
+        """
+        Train the ASN model.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Notes
+        -----
+        Training process includes:
+        
+        - Computing PPMI matrices for both domains
+        - Training private and shared encoders
+        - Optimizing multiple objectives:
+            - Reconstruction loss
+            - Classification loss
+            - Domain adversarial loss
+            - Feature separation loss
+            - Entropy minimization
+        """
         self.num_source_nodes, _ = source_data.x.shape
         self.num_target_nodes, _ = target_data.x.shape
 
@@ -281,6 +327,19 @@ class ASN(BaseGDA):
                    train=True)
     
     def process_graph(self, data):
+        """
+        Process the input graph data to compute PPMI matrix.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+
+        Returns
+        -------
+        torch.sparse.Tensor
+            Normalized PPMI matrix in sparse tensor format.
+        """
         adj = to_dense_adj(data.edge_index).squeeze()
         g = sparse.csc_matrix(adj.detach().cpu().numpy())
         A_k = self.agg_tran_prob_mat(g, self.step)
@@ -292,7 +351,19 @@ class ASN(BaseGDA):
         return n_A_ppmi
     
     def sparse_mx_to_torch_sparse_tensor(self, sparse_mx):
-        """Convert a scipy sparse matrix to a torch sparse tensor."""
+        """
+        Convert a scipy sparse matrix to a torch sparse tensor.
+
+        Parameters
+        ----------
+        sparse_mx : scipy.sparse.spmatrix
+            Input sparse matrix.
+
+        Returns
+        -------
+        torch.sparse.Tensor
+            Converted sparse tensor in CSR format.
+        """
         sparse_mx = sparse_mx.tocoo().astype(np.float32)
         indices = torch.from_numpy(
             np.vstack((sparse_mx.row, sparse_mx.col)).astype(np.int64))
@@ -302,7 +373,26 @@ class ASN(BaseGDA):
         return torch.sparse_coo_tensor(indices, values, shape).coalesce().to_sparse_csr()
 
     def agg_tran_prob_mat(self, g, step):
-        """aggregated K-step transition probality"""
+        """
+        Compute aggregated K-step transition probability matrix.
+
+        Parameters
+        ----------
+        g : scipy.sparse.csc_matrix
+            Graph adjacency matrix.
+        step : int
+            Number of transition steps.
+
+        Returns
+        -------
+        np.ndarray
+            Aggregated transition probability matrix.
+
+        Notes
+        -----
+        Aggregates transition probabilities up to K steps to capture
+        higher-order proximity information.
+        """
         g = self.my_scale_sim_mat(g)
         g = csc_matrix.toarray(g)
         a_k = g
@@ -314,7 +404,19 @@ class ASN(BaseGDA):
         return a
     
     def my_scale_sim_mat(self, w):
-        """L1 row norm of a matrix"""
+        """
+        Compute L1 row normalization of a matrix.
+
+        Parameters
+        ----------
+        w : np.ndarray or scipy.sparse.spmatrix
+            Input matrix to be normalized.
+
+        Returns
+        -------
+        np.ndarray or scipy.sparse.spmatrix
+            Row-normalized matrix.
+        """
         rowsum = np.array(np.sum(w, axis=1), dtype=np.float32)
         r_inv = np.power(rowsum + 1e-12, -1).flatten()
         r_inv[np.isinf(r_inv)] = 0.
@@ -324,7 +426,24 @@ class ASN(BaseGDA):
         return w
     
     def compute_ppmi(self, a):
-        """compute PPMI, given aggregated K-step transition probality matrix as input"""
+        """
+        Compute Positive Pointwise Mutual Information (PPMI) matrix.
+
+        Parameters
+        ----------
+        a : np.ndarray
+            Aggregated transition probability matrix.
+
+        Returns
+        -------
+        np.ndarray
+            PPMI matrix.
+
+        Notes
+        -----
+        PPMI captures the statistical significance of node co-occurrences
+        in random walks, useful for preserving high-order proximity.
+        """
         np.fill_diagonal(a, 0)
         a = self.my_scale_sim_mat(a)
         (p, q) = np.shape(a)
@@ -338,6 +457,28 @@ class ASN(BaseGDA):
         return ppmi
 
     def predict(self, data):
+        """
+        Make predictions on given data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - logits : torch.Tensor
+                Model predictions.
+            - labels : torch.Tensor
+                True labels.
+
+        Notes
+        -----
+        Uses both local and global graph structure through shared encoders
+        and attention mechanism for final prediction.
+        """
         for model in self.asn.models:
             model.eval()
         

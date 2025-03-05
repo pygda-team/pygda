@@ -17,6 +17,36 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 
 class SquirrelDataset(InMemoryDataset):
+    """
+    Squirrel social network dataset loader for graph-based analysis.
+
+    Parameters
+    ----------
+    root : str
+        Root directory where the dataset should be saved
+    name : str
+        Name of the squirrel dataset
+    transform : callable, optional
+        Function/transform that takes in a Data object and returns a transformed
+        version. Default: None
+    pre_transform : callable, optional
+        Function/transform to be applied to the data object before saving.
+        Default: None
+    pre_filter : callable, optional
+        Function that takes in a Data object and returns a boolean value,
+        indicating whether the data object should be included. Default: None
+
+    Notes
+    -----
+    Dataset Structure:
+
+    - Nodes represent Wikipedia pages about squirrels
+    - Edges represent mutual links between pages
+    - Node features from page attributes
+    - Labels indicate page categories
+    - Includes train/val/test splits (80/10/10)
+    """
+
     def __init__(self,
                  root,
                  name,
@@ -31,16 +61,69 @@ class SquirrelDataset(InMemoryDataset):
     
     @property
     def raw_file_names(self):
+        """
+        Names of required raw files.
+
+        Returns
+        -------
+        list[str]
+            List of required raw file names
+
+        Notes
+        -----
+        Required files:
+
+        - data.mat: MATLAB file containing network data, attributes, and groups
+        """
         return ["data.mat"]
 
     @property
     def processed_file_names(self):
+        """
+        Names of processed data files.
+
+        Returns
+        -------
+        list[str]
+            List of processed file names
+
+        Notes
+        -----
+        Processed files:
+
+        - data.pt: Contains processed PyTorch Geometric data object
+        """
         return ['data.pt']
 
     def download(self):
+        """
+        Download raw data files.
+
+        Notes
+        -----
+        Empty implementation - data should be manually placed in raw directory
+        """
         pass
     
     def load_dataset(self):
+        """
+        Load raw MATLAB dataset file.
+
+        Returns
+        -------
+        tuple[np.ndarray, np.ndarray, np.ndarray]
+            Contains:
+
+            - X: Node attributes matrix (dense)
+            - A: Adjacency matrix
+            - Y: Node labels (converted from one-hot)
+
+        Notes
+        -----
+        - Loads .mat file containing network structure
+        - Converts sparse attributes to dense matrix
+        - Converts one-hot labels to class indices
+        """
         path = osp.join(self.raw_dir, '{}.mat'.format(self.name))
         net = sio.loadmat(path)
         X, A, Y = net['attrb'], net['network'], net['group']
@@ -49,6 +132,48 @@ class SquirrelDataset(InMemoryDataset):
         return X, A, Y
         
     def process(self):
+        """
+        Process raw data into PyTorch Geometric Data format.
+
+        Notes
+        -----
+        Processing Steps:
+
+        - Load MATLAB data:
+
+            * Node attributes (sparse to dense)
+            * Adjacency matrix
+            * Group labels (one-hot to indices)
+
+        - Convert to PyTorch format:
+
+            * Edge indices from adjacency
+            * Float features from attributes
+            * Integer labels from groups
+
+        - Create Data object with:
+
+            * Edge indices
+            * Node features
+            * Node labels
+            * Train/val/test masks
+
+        - Apply pre-transform if specified
+        - Save processed data
+
+        Data Split:
+
+        - Training: 80%
+        - Validation: 10%
+        - Testing: 10%
+
+        Features:
+        
+        - Sparse to dense conversion
+        - Type casting
+        - Random split generation
+        - Optional pre-transform support
+        """
         features, A, label = self.load_dataset()        
         edge_index = torch.tensor(np.array(A.nonzero()), dtype=torch.long)
     

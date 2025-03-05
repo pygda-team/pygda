@@ -19,6 +19,7 @@ from .pa import PairAlign
 from .soga import SOGA
 from .gtrans import GTrans
 from .graphcta import GraphCTA
+from .graphata import GraphATA
 
 
 __all__ = [
@@ -42,5 +43,6 @@ __all__ = [
     "PairAlign",
     "SOGA",
     "GTrans",
-    "GraphCTA"
+    "GraphCTA",
+    "GraphATA"
 ]

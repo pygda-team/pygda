@@ -11,7 +11,22 @@ from torch_geometric.utils import to_dense_adj
 
 
 class InnerProductDecoder(nn.Module):
-    """Decoder for using inner product for prediction."""
+    """
+    Decoder module using inner product for graph reconstruction.
+
+    Parameters
+    ----------
+    dropout : float
+        Dropout rate.
+    act : callable, optional
+        Activation function. Default: torch.sigmoid.
+
+    Notes
+    -----
+    - Used for reconstructing adjacency matrices
+    - Applies dropout for regularization
+    - Configurable activation function
+    """
 
     def __init__(self, dropout, act=torch.sigmoid):
         super(InnerProductDecoder, self).__init__()
@@ -19,17 +34,60 @@ class InnerProductDecoder(nn.Module):
         self.act = act
 
     def forward(self, z):
+        """
+        Decode latent representations to adjacency matrix.
+
+        Parameters
+        ----------
+        z : torch.Tensor
+            Latent node representations.
+
+        Returns
+        -------
+        torch.Tensor
+            Reconstructed adjacency matrix.
+        """
         z = F.dropout(z, self.dropout, training=self.training)
         adj = self.act(torch.mm(z, z.t()))
         return adj
 
 
 class DiffLoss(nn.Module):
+    """
+    Difference loss for enforcing feature separation.
+
+    Notes
+    -----
+    - Computes normalized feature differences
+    - Used to encourage orthogonality between domains
+    - L2 normalization for stability
+    """
 
     def __init__(self):
         super(DiffLoss, self).__init__()
 
     def forward(self, input1, input2):
+        """
+        Compute difference loss between two feature sets.
+
+        Parameters
+        ----------
+        input1 : torch.Tensor
+            First feature set.
+        input2 : torch.Tensor
+            Second feature set.
+
+        Returns
+        -------
+        torch.Tensor
+            Difference loss value.
+
+        Notes
+        -----
+        - L2 normalization of inputs
+        - Computes mean squared inner product
+        - Encourages orthogonality
+        """
         batch_size = input1.size(0)
         input1 = input1.view(batch_size, -1)
         input2 = input2.view(batch_size, -1)
@@ -46,6 +104,33 @@ class DiffLoss(nn.Module):
 
 
 class GNNVAE(torch.nn.Module):
+    """
+    Graph Neural Network Variational Autoencoder.
+
+    Parameters
+    ----------
+    in_dim : int
+        Input feature dimension.
+    hid_dim : int
+        Hidden dimension.
+    num_classes : int
+        Number of output classes.
+    gnn_type : str, optional
+        Type of GNN layer ('gcn' or 'ppmi'). Default: 'gcn'.
+    num_layers : int, optional
+        Number of GNN layers. Default: 3.
+    base_model : nn.Module, optional
+        Base model for weight initialization.
+    act : callable, optional
+        Activation function. Default: F.relu.
+
+    Notes
+    -----
+    - Implements variational encoding
+    - Supports weight sharing
+    - Multiple GNN layer types
+    """
+
     def __init__(self, in_dim, hid_dim, num_classes, gnn_type='gcn', num_layers=3, base_model=None, act=F.relu, **kwargs):
         super(GNNVAE, self).__init__()
 
@@ -75,6 +160,24 @@ class GNNVAE(torch.nn.Module):
         self.conv_layers.append(model_cls(hid_dim, num_classes))
 
     def forward(self, x, edge_index):
+        """
+        Forward pass of GNN-VAE.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Node features.
+        edge_index : torch.Tensor
+            Edge indices.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - z : Sampled latent vectors
+            - mu : Mean of latent distribution
+            - logvar : Log variance of latent distribution
+        """
         for i in range(self.num_layers - 2):
             x = self.conv_layers[i](x, edge_index)
             x = self.act(x)
@@ -86,6 +189,21 @@ class GNNVAE(torch.nn.Module):
         return z, mu, logvar
     
     def reparameterize(self, mu, logvar):
+        """
+        Perform reparameterization trick.
+
+        Parameters
+        ----------
+        mu : torch.Tensor
+            Mean of latent distribution.
+        logvar : torch.Tensor
+            Log variance of latent distribution.
+
+        Returns
+        -------
+        torch.Tensor
+            Sampled latent vectors.
+        """
         if self.training:
             std = torch.exp(logvar)
             eps = torch.randn_like(std)
@@ -96,29 +214,36 @@ class GNNVAE(torch.nn.Module):
 
 class ASNBase(nn.Module):
     """
-    Adversarial Separation Network for Cross-Network Node Classification (CIKM-21).
+    Base class for ASN.
 
     Parameters
     ----------
     in_dim : int
-        Input dimension of model.
+        Input feature dimension.
     hid_dim : int
-        Hidden dimension of model.
+        Hidden dimension.
     hid_dim_vae : int
-        Hidden dimension of vae model.
+        VAE hidden dimension.
     num_classes : int
         Number of classes.
     num_layers : int, optional
-        Total number of layers in model. Default: ``4``.
+        Number of layers. Default: 3.
+    act : callable, optional
+        Activation function. Default: F.relu.
     dropout : float, optional
-        Dropout rate. Default: ``0.``.
-    act : callable activation function or None, optional
-        Activation function if not None.
-        Default: ``torch.nn.functional.relu``.
+        Dropout rate. Default: 0.1.
     adv_dim : int, optional
-        Hidden dimension of adversarial module. Default: ``40``.
-    **kwargs : optional
-        Other parameters for the backbone.
+        Adversarial module dimension. Default: 40.
+
+    Notes
+    -----
+    Architecture components:
+
+    1. Private encoders (local and global) for source/target
+    2. Shared encoders (local and global)
+    3. Decoders for reconstruction
+    4. Domain discriminator
+    5. Attention mechanisms
     """
 
     def __init__(self,
@@ -177,12 +302,53 @@ class ASNBase(nn.Module):
         self.loss_diff = DiffLoss()
     
     def recon_loss(self, preds, labels, mu, logvar, n_nodes, norm, pos_weight):
+        """
+        Compute reconstruction loss with KL divergence.
+
+        Parameters
+        ----------
+        preds : torch.Tensor
+            Predicted adjacency matrix.
+        labels : torch.Tensor
+            True adjacency matrix.
+        mu : torch.Tensor
+            Mean of latent distribution.
+        logvar : torch.Tensor
+            Log variance of latent distribution.
+        n_nodes : int
+            Number of nodes.
+        norm : float
+            Normalization factor.
+        pos_weight : torch.Tensor
+            Positive class weight.
+
+        Returns
+        -------
+        torch.Tensor
+            Combined reconstruction and KL loss.
+        """
         cost = norm * F.binary_cross_entropy_with_logits(preds, labels, pos_weight=pos_weight)
         KLD = -0.5 / n_nodes * torch.mean(torch.sum(1 + 2 * logvar - mu.pow(2) - logvar.exp().pow(2), 1))
         
         return cost + KLD
     
     def adj_label_for_reconstruction(self, data):
+        """
+        Prepare adjacency matrix for reconstruction.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - adj_label : Processed adjacency matrix
+            - pos_weight : Positive class weight
+            - norm : Normalization factor
+        """
         A = to_dense_adj(data.edge_index)
         A = A.squeeze(dim=0)
         adj_label = A + torch.eye(A.shape[0]).to(data.x.device)

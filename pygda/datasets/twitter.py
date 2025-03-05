@@ -17,6 +17,36 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 
 class TwitterDataset(InMemoryDataset):
+    """
+    Twitter social network dataset loader for graph-based analysis.
+
+    Parameters
+    ----------
+    root : str
+        Root directory where the dataset should be saved
+    name : str
+        Name of the Twitter dataset
+    transform : callable, optional
+        Function/transform that takes in a Data object and returns a transformed
+        version. Default: None
+    pre_transform : callable, optional
+        Function/transform to be applied to the data object before saving.
+        Default: None
+    pre_filter : callable, optional
+        Function that takes in a Data object and returns a boolean value,
+        indicating whether the data object should be included. Default: None
+
+    Notes
+    -----
+    Dataset Structure:
+
+    - Nodes represent Twitter users
+    - Edges represent user interactions/connections
+    - Node features from user attributes
+    - Labels indicate user categories (0-based indexing)
+    - Includes train/val/test splits (80/10/10)
+    """
+
     def __init__(self,
                  root,
                  name,
@@ -31,16 +61,105 @@ class TwitterDataset(InMemoryDataset):
     
     @property
     def raw_file_names(self):
+        """
+        Names of required raw files.
+
+        Returns
+        -------
+        list[str]
+            List of required raw file names
+
+        Notes
+        -----
+        Required files:
+
+        - data.pt: PyTorch file containing graph data
+        """
         return ["data.pt"]
 
     @property
     def processed_file_names(self):
+        """
+        Names of processed data files.
+
+        Returns
+        -------
+        list[str]
+            List of processed file names
+
+        Notes
+        -----
+        Processed files:
+
+        - data.pt: Contains processed PyTorch Geometric data object
+        """
         return ['data.pt']
 
     def download(self):
+        """
+        Download raw data files.
+
+        Notes
+        -----
+        Empty implementation - data should be manually placed in raw directory
+        """
         pass
         
     def process(self):
+        """
+        Process raw data into PyTorch Geometric Data format.
+
+        Notes
+        -----
+        Processing Steps:
+        
+        - Load dataset file:
+
+            * Node features (x)
+            * Edge indices
+            * Node labels
+
+        - Adjust labels:
+
+            * Convert to 0-based indexing
+            * Handle label shifts
+
+        - Create Data object with:
+
+            * Edge indices
+            * Node features
+            * Node labels
+            * Train/val/test masks
+
+        - Generate splits:
+
+            * Random permutation
+            * Training (80%)
+            * Validation (10%)
+            * Testing (10%)
+
+        - Create masks:
+
+            * Boolean tensors
+            * Node-wise split indicators
+
+        - Optional processing:
+
+            * Apply pre-transform if specified
+            * Handle eigenvalue computation
+
+        - Data organization:
+
+            * Collate into list
+            * Save processed format
+
+        Features:
+        
+        - Label adjustment
+        - Random split generation
+        - Mask creation
+        - Optional pre-transform support
+        """
         path = osp.join(self.raw_dir, 'data.pt')
         graph = torch.load(path)
         x, edge_index, y = graph.x, graph.edge_index, graph.y   

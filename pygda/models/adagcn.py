@@ -107,6 +107,19 @@ class AdaGCN(BaseGDA):
         self.mode=mode
 
     def init_model(self, **kwargs):
+        """
+        Initialize the AdaGCN model.
+
+        Parameters
+        ----------
+        **kwargs
+            Other parameters for the AdaGCNBase model.
+
+        Returns
+        -------
+        AdaGCNBase
+            Initialized AdaGCN model on the specified device.
+        """
 
         return AdaGCNBase(
             in_dim=self.in_dim,
@@ -121,6 +134,36 @@ class AdaGCN(BaseGDA):
         ).to(self.device)
 
     def forward_model(self, source_data, target_data):
+        """
+        Forward pass of the model.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - loss : torch.Tensor
+                Combined loss from classification and domain adaptation.
+            - source_logits : torch.Tensor
+                Model predictions for source domain.
+            - target_logits : torch.Tensor
+                Model predictions for target domain.
+
+        Notes
+        -----
+        Performs adversarial training with:
+
+        - Discriminator optimization
+        - Gradient penalty computation
+        - Classification loss
+        - Domain adaptation loss
+        """
         for _ in range(10):
             encoded_source = self.adagcn(source_data)
             encoded_target = self.adagcn(target_data)
@@ -149,6 +192,25 @@ class AdaGCN(BaseGDA):
         return loss, source_logits, target_logits
 
     def fit(self, source_data, target_data):
+        """
+        Train the AdaGCN model.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Notes
+        -----
+        Training process includes:
+
+        - Setting up data loaders for both domains
+        - Initializing GNN and discriminator
+        - Training with adversarial learning
+        - Supporting both node and graph level tasks
+        """
         if self.mode == 'node':
             self.num_source_nodes, _ = source_data.x.shape
             self.num_target_nodes, _ = target_data.x.shape
@@ -245,9 +307,46 @@ class AdaGCN(BaseGDA):
                    train=True)
     
     def process_graph(self, data):
+        """
+        Process the input graph data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data to be processed.
+
+        Notes
+        -----
+        Placeholder method for graph preprocessing.
+        """
         pass
 
     def predict(self, data, source=False):
+        """
+        Make predictions on given data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+        source : bool, optional
+            Whether the input is from source domain.
+            Default: ``False``.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - logits : torch.Tensor
+                Model predictions.
+            - labels : torch.Tensor
+                True labels.
+
+        Notes
+        -----
+        Handles predictions for both source and target domains
+        using appropriate data loaders.
+        """
         self.adagcn.eval()
 
         if source:
@@ -280,6 +379,30 @@ class AdaGCN(BaseGDA):
         return logits, labels
 
     def gradient_penalty(self, encoded_source, encoded_target):
+        """
+        Compute gradient penalty for Wasserstein GAN training.
+
+        Parameters
+        ----------
+        encoded_source : torch.Tensor
+            Encoded features from source domain.
+        encoded_target : torch.Tensor
+            Encoded features from target domain.
+
+        Returns
+        -------
+        torch.Tensor
+            Computed gradient penalty value.
+
+        Notes
+        -----
+        Implements Wasserstein GAN gradient penalty by:
+        
+        - Interpolating between source and target features
+        - Computing gradients w.r.t. discriminator outputs
+        - Penalizing gradients that deviate from norm 1
+        - Handling different batch sizes between domains
+        """
         num_s = encoded_source.shape[0]
         num_t = encoded_target.shape[0]
 

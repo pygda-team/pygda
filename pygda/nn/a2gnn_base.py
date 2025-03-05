@@ -10,7 +10,7 @@ from torch_geometric.nn import global_mean_pool
 
 class A2GNNBase(nn.Module):
     """
-    Rethinking Propagation for Unsupervised Graph Domain Adaptation (AAAI-24).
+    Base class for A2GNN.
 
     Parameters
     ----------
@@ -70,6 +70,30 @@ class A2GNNBase(nn.Module):
             self.domain_discriminator = nn.Linear(self.hid_dim, 2)
             
     def forward(self, data, prop_nums):
+        """
+        Forward pass of the A2GNN model.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data containing features, edge indices, and batch info.
+        prop_nums : int
+            Number of propagation steps.
+
+        Returns
+        -------
+        torch.Tensor
+            Model predictions.
+
+        Notes
+        -----
+        - Handles both node and graph-level tasks
+
+        - Two-stage processing:
+            
+            * Feature bottleneck with multiple propagations
+            * Classification with single propagation
+        """
         if self.mode == 'node':
             x, edge_index, batch = data.x, data.edge_index, None
         else:
@@ -80,6 +104,34 @@ class A2GNNBase(nn.Module):
         return x
     
     def feat_bottleneck(self, x, edge_index, batch, prop_nums=30):
+        """
+        Feature extraction through propagation layers.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Node features.
+        edge_index : torch.Tensor
+            Edge indices.
+        batch : torch.Tensor or None
+            Batch assignment for graph-level tasks.
+        prop_nums : int, optional
+            Number of propagation steps. Default: 30.
+
+        Returns
+        -------
+        torch.Tensor
+            Processed node/graph features.
+
+        Notes
+        -----
+        Implementation features:
+        
+        - Multiple GCN layers with propagation
+        - Activation and dropout after each layer
+        - Graph pooling for graph-level tasks
+        - Configurable propagation steps
+        """
         for i, conv in enumerate(self.convs):
             x = conv(x, edge_index, prop_nums)
             x = self.act(x)
@@ -91,6 +143,31 @@ class A2GNNBase(nn.Module):
         return x
     
     def feat_classifier(self, x, edge_index, batch, prop_nums=1):
+        """
+        Classification layer with propagation.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Node/graph features.
+        edge_index : torch.Tensor
+            Edge indices.
+        batch : torch.Tensor or None
+            Batch assignment for graph-level tasks.
+        prop_nums : int, optional
+            Number of propagation steps. Default: 1.
+
+        Returns
+        -------
+        torch.Tensor
+            Classification logits.
+
+        Notes
+        -----
+        - Node-level: Uses PropGCNConv with propagation
+        - Graph-level: Uses linear classification
+        - Single propagation step by default
+        """
         if self.mode == 'node':
             x = self.cls(x, edge_index, prop_nums)
         else:
@@ -99,6 +176,28 @@ class A2GNNBase(nn.Module):
         return x
     
     def domain_classifier(self, x, alpha):
+        """
+        Domain classification with gradient reversal.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input features.
+        alpha : float
+            Gradient reversal scaling parameter.
+
+        Returns
+        -------
+        torch.Tensor
+            Domain classification logits.
+
+        Notes
+        -----
+        - Applies gradient reversal layer
+        - Binary domain classification
+        - Used only when adv=True
+        - Helps in domain adaptation
+        """
         d_logit = self.domain_discriminator(GradReverse.apply(x, alpha))
         
         return d_logit

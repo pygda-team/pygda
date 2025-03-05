@@ -17,6 +17,36 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 
 class CitationDataset(InMemoryDataset):
+    """
+    Citation network dataset loader for graph-based analysis.
+
+    Parameters
+    ----------
+    root : str
+        Root directory where the dataset should be saved
+    name : str
+        Name of the citation dataset
+    transform : callable, optional
+        Function/transform that takes in a Data object and returns a transformed
+        version. Default: None
+    pre_transform : callable, optional
+        Function/transform to be applied to the data object before saving.
+        Default: None
+    pre_filter : callable, optional
+        Function that takes in a Data object and returns a boolean value,
+        indicating whether the data object should be included. Default: None
+
+    Notes
+    -----
+    Dataset Structure:
+
+    - Nodes represent academic papers
+    - Edges represent citations between papers
+    - Node features from document text
+    - Labels indicate paper categories
+    - Includes train/val/test splits (80/10/10)
+    """
+
     def __init__(self,
                  root,
                  name,
@@ -31,16 +61,95 @@ class CitationDataset(InMemoryDataset):
     
     @property
     def raw_file_names(self):
+        """
+        Names of required raw files.
+
+        Returns
+        -------
+        list[str]
+            List of required raw file names
+
+        Notes
+        -----
+        Required files:
+
+        - docs.txt: Document features
+        - edgelist.txt: Citation network structure
+        - labels.txt: Paper category labels
+        """
         return ["docs.txt", "edgelist.txt", "labels.txt"]
 
     @property
     def processed_file_names(self):
+        """
+        Names of processed data files.
+
+        Returns
+        -------
+        list[str]
+            List of processed file names
+
+        Notes
+        -----
+        Processed files:
+
+        - data.pt: Contains processed PyTorch Geometric data object
+        """
         return ['data.pt']
 
     def download(self):
+        """
+        Download raw data files.
+
+        Notes
+        -----
+        Empty implementation - data should be manually placed in raw directory
+        """
         pass
 
     def process(self):
+        """
+        Process raw data into PyTorch Geometric Data format.
+
+        Notes
+        -----
+        Processing Steps:
+        
+        - Load raw files:
+            
+            * Edge list (citations)
+            * Document features
+            * Paper labels
+
+        - Convert to PyTorch format:
+        
+            * Edge indices from citation list
+            * Float features from document text
+            * Integer labels from categories
+
+        - Create Data object with:
+
+            * Edge indices
+            * Node features
+            * Node labels
+            * Train/val/test masks
+
+        - Apply pre-transform if specified
+        - Save processed data
+
+        Data Split:
+
+        - Training: 80%
+        - Validation: 10%
+        - Testing: 10%
+
+        Features:
+
+        - UTF-8 text processing
+        - Type conversion
+        - Random split generation
+        - Optional pre-transform support
+        """
         edge_path = osp.join(self.raw_dir, '{}_edgelist.txt'.format(self.name))
         edge_index = read_txt_array(edge_path, sep=',', dtype=torch.long).t()
 

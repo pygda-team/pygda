@@ -140,7 +140,29 @@ class GraphCTA(BaseGDA):
         self.neighprop = SimpleConv(aggr='mean')
 
     def init_model(self, **kwargs):
+        """
+        Initialize the GraphCTA base model.
 
+        Parameters
+        ----------
+        **kwargs
+            Additional parameters for model initialization.
+
+        Returns
+        -------
+        GNNBase
+            Initialized model with specified architecture.
+
+        Notes
+        -----
+        Configures base GNN model with:
+
+        - Input and hidden dimensions
+        - Number of classes and layers
+        - Dropout rate
+        - Specified GNN backbone type
+        - Device placement
+        """
         return GNNBase(
             in_dim=self.in_dim,
             hid_dim=self.hid_dim,
@@ -151,10 +173,67 @@ class GraphCTA(BaseGDA):
             **kwargs
         ).to(self.device)
     
-    def forward_model(self, data,  **kwargs):
+    def forward_model(self, data, **kwargs):
+        """
+        Forward pass placeholder for GraphCTA model.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+        **kwargs
+            Additional arguments.
+
+        Notes
+        -----
+        Placeholder method as GraphCTA implements custom forward logic through:
+
+        - Source domain training in train_source()
+        - Collaborative adaptation in fit()
+        - Feature and structure optimization
+        - Memory-based prototype learning
+        """
         pass
     
     def train_source(self, optimizer):
+        """
+        Train the model on source domain data.
+
+        Parameters
+        ----------
+        optimizer : torch.optim.Optimizer
+            Optimizer for model parameters.
+
+        Notes
+        -----
+        Training process includes:
+
+        Per-epoch Operations:
+        
+        - Tracks cumulative loss
+        - Maintains logits and labels
+        - Computes performance metrics
+
+        Batch Processing:
+        
+        - Moves data to device
+        - Computes model predictions
+        - Applies negative log-likelihood loss
+        - Updates model parameters
+
+        Monitoring:
+        
+        - Computes micro-F1 score
+        - Logs training progress
+        - Tracks timing information
+
+        Implementation Features:
+        
+        - Supports batch processing
+        - Uses softmax with log probabilities
+        - Accumulates predictions for full evaluation
+        - Comprehensive logging
+        """
         for epoch in range(self.epoch):
             epoch_loss = 0
             epoch_source_logits = None
@@ -190,6 +269,63 @@ class GraphCTA(BaseGDA):
                 train=True)
 
     def fit(self, source_data, target_data):
+        """
+        Train the GraphCTA model with collaborative adaptation.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Notes
+        -----
+        Implementation consists of three main phases:
+
+        Initialization
+        
+        - Sets up data loaders
+        - Initializes model and optimizers
+        - Creates memory banks for features and classes
+        - Prepares feature and structure perturbation variables
+
+        Source Pretraining
+        
+        - Trains model on source domain
+        - Uses standard cross-entropy loss
+        - Prepares model for adaptation
+
+        Target Adaptation (Iterative)
+        
+        - Model Update Loop:
+            
+            * Updates model parameters
+            * Computes prototype-based alignment
+            * Updates memory banks with momentum
+            * Combines local and contrastive losses
+
+        - Feature Optimization Loop:
+            
+            * Optimizes feature perturbations
+            * Uses test-time adaptation loss
+            * Maintains feature consistency
+
+        - Structure Optimization Loop:
+            
+            * Modifies edge weights
+            * Ensures budget constraints
+            * Preserves graph properties
+
+        Implementation Features:
+        
+        - Memory-based prototype learning
+        - Gradient checkpointing for efficiency
+        - Momentum updates for stability
+        - Budget-constrained modifications
+        - Multiple optimization objectives
+        - Collaborative feature-structure adaptation
+        """
         if self.batch_size == 0:
             self.source_batch_size = source_data.x.shape[0]
             self.source_loader = NeighborLoader(
@@ -330,6 +466,33 @@ class GraphCTA(BaseGDA):
         self.edge_index, self.edge_weight = self.sample_final_edges(n_perturbations, perturbed_edge_weight, target_data, modified_edge_index, n, mem_fea, mem_cls)
 
     def instance_proto_alignment(self, feat, center, pred):
+        """
+        Compute instance-prototype alignment loss.
+
+        Parameters
+        ----------
+        feat : torch.Tensor
+            Node features.
+        center : torch.Tensor
+            Prototype centers.
+        pred : torch.Tensor
+            Predicted labels.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - loss : torch.Tensor
+                Contrastive alignment loss.
+            - weight : torch.Tensor
+                Instance-prototype similarity weights.
+
+        Notes
+        -----
+        - Implements temperature-scaled contrastive loss
+        - Handles both instance-prototype and instance-instance relations
+        - Uses cosine similarity for feature comparison
+        """
         feat_norm = F.normalize(feat, dim=1)
         center_norm = F.normalize(center, dim=1)
         sim = torch.matmul(feat_norm, center_norm.t())
@@ -349,6 +512,24 @@ class GraphCTA(BaseGDA):
         return loss, weight
 
     def update_edge_weights(self, gradient, optimizer_adj, perturbed_edge_weight):
+        """
+        Update edge weights during structure optimization.
+
+        Parameters
+        ----------
+        gradient : torch.Tensor
+            Computed gradients for edge weights.
+        optimizer_adj : torch.optim.Optimizer
+            Optimizer for edge weights.
+        perturbed_edge_weight : torch.Tensor
+            Current edge weights to be updated.
+
+        Notes
+        -----
+        - Applies gradient updates to edge weights
+        - Maintains minimum weight threshold
+        - Uses Adam optimizer for updates
+        """
         optimizer_adj.zero_grad()
         perturbed_edge_weight.grad = gradient
         optimizer_adj.step()
@@ -356,6 +537,42 @@ class GraphCTA(BaseGDA):
     
     @torch.no_grad()
     def sample_final_edges(self, n_perturbations, perturbed_edge_weight, data, modified_edge_index, n, mem_fea, mem_cls):
+        """
+        Sample final edge structure based on learned weights.
+
+        Parameters
+        ----------
+        n_perturbations : int
+            Maximum number of allowed edge modifications.
+        perturbed_edge_weight : torch.Tensor
+            Learned edge weights.
+        data : torch_geometric.data.Data
+            Target graph data.
+        modified_edge_index : torch.Tensor
+            Modified edge indices.
+        n : int
+            Number of nodes.
+        mem_fea : torch.Tensor
+            Memory bank features.
+        mem_cls : torch.Tensor
+            Memory bank class predictions.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - edge_index : torch.Tensor
+                Final edge structure.
+            - edge_weight : torch.Tensor
+                Final edge weights.
+
+        Notes
+        -----
+        - Uses iterative sampling strategy
+        - Maintains best performing structure
+        - Ensures perturbation budget constraints
+        - Handles undirected graph requirements
+        """
         best_loss = float('Inf')
         perturbed_edge_weight = perturbed_edge_weight.detach()
         perturbed_edge_weight[perturbed_edge_weight <= 1e-7] = 0
@@ -406,15 +623,80 @@ class GraphCTA(BaseGDA):
         return edge_index[:, edge_mask], edge_weight[edge_mask]
     
     def process_graph(self, data):
+        """
+        Process input graph data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph to be processed.
+
+        Notes
+        -----
+        Placeholder method as graph processing is handled through:
+
+        - Feature perturbation optimization
+        - Structure modification
+        - Memory bank updates
+        - Prototype-based alignment
+        """
         pass
     
     def entropy(self, input_):
+        """
+        Calculate entropy of probability distribution.
+
+        Parameters
+        ----------
+        input_ : torch.Tensor
+            Input probability distribution.
+
+        Returns
+        -------
+        torch.Tensor
+            Computed entropy values per sample.
+
+        Notes
+        -----
+        - Handles numerical stability with epsilon
+        - Used for confidence-based pseudo-labeling
+        """
         entropy = -input_ * torch.log(input_ + 1e-8)
         entropy = torch.sum(entropy, dim=1)
         
         return entropy 
     
     def test_time_loss(self, feat, edge_index, edge_weight, mem_fea, mem_cls):
+        """
+        Compute test-time adaptation loss.
+
+        Parameters
+        ----------
+        feat : torch.Tensor
+            Node features.
+        edge_index : torch.Tensor
+            Edge indices.
+        edge_weight : torch.Tensor
+            Edge weights.
+        mem_fea : torch.Tensor
+            Memory bank features.
+        mem_cls : torch.Tensor
+            Memory bank class predictions.
+
+        Returns
+        -------
+        torch.Tensor
+            Combined loss value.
+
+        Notes
+        -----
+        Loss components include:
+        
+        1. Pseudo-label based classification
+        2. Feature similarity with memory bank
+        3. Class-wise prototype alignment
+        4. Confidence-based sample selection
+        """
         self.graphcta.eval()
         feat_output = self.graphcta.feat_bottleneck(feat, edge_index, edge_weight)
         cls_output = self.graphcta.feat_classifier(feat_output, edge_index, edge_weight)
@@ -467,6 +749,29 @@ class GraphCTA(BaseGDA):
 
 
     def predict(self, data):
+        """
+        Make predictions using the adapted model.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - logits : torch.Tensor
+                Model predictions using optimized features and structure.
+            - labels : torch.Tensor
+                True labels.
+
+        Notes
+        -----
+        - Uses transformed features (self.new_feat)
+        - Uses optimized edge structure (self.edge_index, self.edge_weight)
+        - Evaluates model in inference mode
+        """
         self.graphcta.eval()
 
         logits = self.graphcta(self.new_feat, self.edge_index, self.edge_weight)

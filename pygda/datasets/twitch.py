@@ -17,6 +17,36 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 
 class TwitchDataset(InMemoryDataset):
+    """
+    Twitch social network dataset loader for graph-based analysis.
+
+    Parameters
+    ----------
+    root : str
+        Root directory where the dataset should be saved
+    name : str
+        Name of the language dataset (e.g., 'DE', 'EN', 'FR')
+    transform : callable, optional
+        Function/transform that takes in a Data object and returns a transformed
+        version. Default: None
+    pre_transform : callable, optional
+        Function/transform to be applied to the data object before saving.
+        Default: None
+    pre_filter : callable, optional
+        Function that takes in a Data object and returns a boolean value,
+        indicating whether the data object should be included. Default: None
+
+    Notes
+    -----
+    Dataset Structure:
+
+    - Nodes represent Twitch users
+    - Edges represent user connections
+    - Node features from user activities
+    - Labels indicate user attributes
+    - Includes train/val/test splits (80/10/10)
+    """
+
     def __init__(self,
                  root,
                  name,
@@ -31,16 +61,95 @@ class TwitchDataset(InMemoryDataset):
     
     @property
     def raw_file_names(self):
+        """
+        Names of required raw files.
+
+        Returns
+        -------
+        list[str]
+            List of required raw file names
+
+        Notes
+        -----
+        Required files:
+
+        - edges.csv: Network connectivity data
+        - features.json: User feature data
+        - target.csv: User labels
+        """
         return ["edges.csv, features.json, target.csv"]
 
     @property
     def processed_file_names(self):
+        """
+        Names of processed data files.
+
+        Returns
+        -------
+        list[str]
+            List of processed file names
+
+        Notes
+        -----
+        Processed files:
+
+        - data.pt: Contains processed PyTorch Geometric data object
+        """
         return ['data.pt']
 
     def download(self):
+        """
+        Download raw data files.
+
+        Notes
+        -----
+        Empty implementation - data should be manually placed in raw directory
+        """
         pass
     
     def load_dataset(self, lang):
+        """
+        Load raw Twitch dataset files.
+
+        Parameters
+        ----------
+        lang : str
+            Language code for the dataset (e.g., 'DE', 'EN', 'FR')
+
+        Returns
+        -------
+        tuple[scipy.sparse.csr_matrix, np.ndarray, np.ndarray]
+            Contains:
+
+            - A: Adjacency matrix [num_nodes, num_nodes]
+            - label: Binary labels [num_nodes]
+            - features: Feature matrix [num_nodes, 3170]
+
+        Notes
+        -----
+        Processing Steps:
+        
+        - Load target data:
+
+            * Handle non-unique rows
+            * Extract binary labels
+            * Map node IDs
+
+        - Load edge data:
+
+            * Create adjacency matrix
+            * Handle sparse connections
+
+        - Load feature data:
+
+            * Parse JSON features
+            * Create sparse feature matrix
+
+        - Reorder nodes:
+
+            * Ensure consistent indexing
+            * Map node IDs to indices
+        """
         # assert lang in ('DE', 'EN', 'FR'), 'Invalid dataset'
         filepath = self.raw_dir
         label = []
@@ -93,6 +202,48 @@ class TwitchDataset(InMemoryDataset):
         return A, label, features
 
     def process(self):
+        """
+        Process raw data into PyTorch Geometric Data format.
+
+        Notes
+        -----
+        Processing Steps:
+
+        - Load dataset files:
+
+            * Adjacency matrix
+            * Node labels
+            * Feature matrix
+
+        - Convert to PyTorch format:
+
+            * Edge indices from sparse adjacency
+            * Float features from sparse matrix
+            * Integer labels from binary values
+
+        - Create Data object with:
+
+            * Edge indices
+            * Node features
+            * Node labels
+            * Train/val/test masks
+
+        - Apply pre-transform if specified
+        - Save processed data
+
+        Data Split:
+        
+        - Training: 80%
+        - Validation: 10%
+        - Testing: 10%
+
+        Features:
+        
+        - Sparse matrix handling
+        - JSON feature processing
+        - Random split generation
+        - Optional pre-transform support
+        """
         A, label, features = self.load_dataset(self.name)
         edge_index = torch.tensor(np.array(A.nonzero()), dtype=torch.long)
         features = np.array(features)

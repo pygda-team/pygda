@@ -9,6 +9,21 @@ from .gmm_clustering import GMMClustering
 
 
 class GCNPooling(torch.nn.Module):
+    """
+    GCN-based hierarchical pooling layer.
+
+    Parameters
+    ----------
+    in_dim : int
+        Input feature dimension.
+    hid_dim : int
+        Number of nodes in pooled graph.
+    device : torch.device
+        Device to use.
+    sparse : bool
+        Whether to use sparse assignment matrix.
+    """
+
     def __init__(self, in_dim, hid_dim, device, sparse):
         super(GCNPooling, self).__init__()
         self.gcn = GCNConv(in_dim, hid_dim)
@@ -17,12 +32,58 @@ class GCNPooling(torch.nn.Module):
         self.sparse = sparse
     
     def to_onehot(self, label_matrix, num_classes):
+        """
+        Convert labels to one-hot encoding.
+
+        Parameters
+        ----------
+        label_matrix : torch.Tensor
+            Label indices.
+        num_classes : int
+            Number of classes.
+
+        Returns
+        -------
+        torch.Tensor
+            One-hot encoded labels.
+        """
         identity = torch.eye(num_classes).to(self.device)
         onehot = torch.index_select(identity, 0, label_matrix)
         
         return onehot
 
     def forward(self, X_old, edge_index, edge_weight, A_old, Y_old, Z, use_sparse=False):
+        """
+        Forward pass of pooling layer.
+
+        Parameters
+        ----------
+        X_old : torch.Tensor
+            Node features.
+        edge_index : torch.Tensor
+            Edge indices.
+        edge_weight : torch.Tensor
+            Edge weights.
+        A_old : torch.Tensor
+            Adjacency matrix.
+        Y_old : torch.Tensor
+            Node labels.
+        Z : torch.Tensor
+            Node embeddings.
+        use_sparse : bool, optional
+            Whether to use sparse operations.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            
+            - S: Assignment matrix
+            - X_new: Pooled features
+            - A_new: Pooled adjacency
+            - Y_new: Pooled labels
+            - Y_new_prob: Label probabilities
+        """
         S = self.softmax(F.relu(self.gcn(X_old, edge_index, edge_weight)))
 
         if self.sparse:
@@ -46,7 +107,7 @@ class GCNPooling(torch.nn.Module):
 
 class JHGDABase(nn.Module):
     """
-    Improving Graph Domain Adaptation with Network Hierarchy (CIKM-23).
+    Base class for JHGDA.
 
     Parameters
     ----------
@@ -135,6 +196,34 @@ class JHGDABase(nn.Module):
         self.loss_func = nn.CrossEntropyLoss()
     
     def forward(self, x_s, edge_index_s, y_s, x_t, edge_index_t, y_t):
+        """
+        Forward pass of JHGDA model.
+
+        Parameters
+        ----------
+        x_s : torch.Tensor
+            Source node features.
+        edge_index_s : torch.Tensor
+            Source edge indices.
+        y_s : torch.Tensor
+            Source labels.
+        x_t : torch.Tensor
+            Target node features.
+        edge_index_t : torch.Tensor
+            Target edge indices.
+        y_t : torch.Tensor
+            Target labels.
+
+        Returns
+        -------
+        tuple
+            Contains:
+
+            - embeddings: List of source/target embeddings
+            - pred: Source/target predictions
+            - pooling_loss: Dictionary of pooling losses
+            - y: List of source/target labels
+        """
         edge_weight_s = torch.ones(edge_index_s.shape[1]).to(self.device)
         edge_weight_t = torch.ones(edge_index_t.shape[1]).to(self.device)
         A_s, A_t = edge_index_s, edge_index_t
@@ -187,6 +276,29 @@ class JHGDABase(nn.Module):
         return self.embedddings, pred, self.pooling_loss, self.y
 
     def pseudo_label(self, z_s, y_s, z_t, y_t, edge_index_t, edge_weight_t):
+        """
+        Generate pseudo-labels for target domain.
+
+        Parameters
+        ----------
+        z_s : torch.Tensor
+            Source embeddings.
+        y_s : torch.Tensor
+            Source labels.
+        z_t : torch.Tensor
+            Target embeddings.
+        y_t : torch.Tensor
+            Target labels.
+        edge_index_t : torch.Tensor
+            Target edge indices.
+        edge_weight_t : torch.Tensor
+            Target edge weights.
+
+        Returns
+        -------
+        torch.Tensor
+            Pseudo-labels for target domain.
+        """
         n_class = y_s.shape[1]
         entropy_lower_bound = 0.04
         gmmcluster = GMMClustering(num_class=n_class, device=self.device)
@@ -201,6 +313,21 @@ class JHGDABase(nn.Module):
         return tgt_y_pseudo.to(self.device)
     
     def entropy(self, x, reduction='mean'):
+        """
+        Compute entropy of probability distribution.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Probability distribution.
+        reduction : str, optional
+            Reduction method. Default: 'mean'.
+
+        Returns
+        -------
+        torch.Tensor
+            Entropy value.
+        """
         eps = 1e-7
         log_x = torch.log(x + eps)
         entropy_x = torch.sum(- x * log_x, dim=1)
@@ -208,6 +335,23 @@ class JHGDABase(nn.Module):
         return torch.mean(entropy_x)
     
     def proximity_loss(self, A, S, adj_hop=1):
+        """
+        Compute graph structure preservation loss.
+
+        Parameters
+        ----------
+        A : torch.Tensor
+            Original adjacency matrix.
+        S : torch.Tensor
+            Assignment matrix.
+        adj_hop : int, optional
+            Number of hops. Default: 1.
+
+        Returns
+        -------
+        torch.Tensor
+            Proximity loss value.
+        """
         eps = 1e-7
         num_nodes = S.size()[0]
         pred_adj0 = torch.matmul(S, S.T)
@@ -233,6 +377,23 @@ class JHGDABase(nn.Module):
         return link_loss
     
     def label_matching(self, S, Y_old, Y_new):
+        """
+        Compute label consistency loss.
+
+        Parameters
+        ----------
+        S : torch.Tensor
+            Assignment matrix.
+        Y_old : torch.Tensor
+            Original labels.
+        Y_new : torch.Tensor
+            New labels.
+
+        Returns
+        -------
+        torch.Tensor
+            Label matching loss value.
+        """
         n_node_old = S.shape[0]
         n_node_new = S.shape[1]
         label_matching_mat = torch.matmul(Y_old, Y_new.T)
@@ -243,6 +404,23 @@ class JHGDABase(nn.Module):
         return 1 - c / n_node_old
 
     def label_stable(self, S, Y_old, Y_new):
+        """
+        Compute label stability loss.
+
+        Parameters
+        ----------
+        S : torch.Tensor
+            Assignment matrix.
+        Y_old : torch.Tensor
+            Original labels.
+        Y_new : torch.Tensor
+            New labels.
+
+        Returns
+        -------
+        torch.Tensor
+            Label stability loss value.
+        """
         n_class = Y_old.shape[1]
         label_stable_mat = torch.softmax(torch.matmul(torch.matmul(Y_old.T, S), Y_new), dim=1)
         pos = torch.mean(torch.diag(label_stable_mat))
@@ -250,6 +428,23 @@ class JHGDABase(nn.Module):
         return 1 - pos
     
     def adj2coo(self, A):
+        """
+        Convert dense adjacency matrix to COO format.
+
+        Parameters
+        ----------
+        A : torch.Tensor
+            Dense adjacency matrix, shape (n_nodes, n_nodes).
+
+        Returns
+        -------
+        tuple
+            Contains:
+
+            - torch.Tensor: Edge indices in COO format, shape (2, n_edges)
+            - torch.Tensor: Edge weights, shape (n_edges,)
+
+        """
         edge_weight = torch.squeeze(A.reshape(1, -1))
         row_elements = []
         col_elements = []
@@ -264,6 +459,26 @@ class JHGDABase(nn.Module):
         return edge_index.to(self.device), edge_weight.to(self.device)
     
     def classwise_simple_mmd(self, source, target, src_y, tgt_y):
+        """
+        Compute class-wise Maximum Mean Discrepancy.
+
+        Parameters
+        ----------
+        source : torch.Tensor
+            Source domain features.
+        target : torch.Tensor
+            Target domain features.
+        src_y : torch.Tensor
+            Source domain labels (one-hot).
+        tgt_y : torch.Tensor
+            Target domain labels (one-hot).
+
+        Returns
+        -------
+        float
+            Sum of class-wise MMD values.
+
+        """
         mmd = 0.
         for c in range(src_y.shape[1]):
             src_idx = src_y[:, c].to(torch.bool)
@@ -276,18 +491,72 @@ class JHGDABase(nn.Module):
         return mmd
     
     def simple_mmd(self, source, target):
+        """
+        Compute simple Maximum Mean Discrepancy.
+
+        Parameters
+        ----------
+        source : torch.Tensor
+            Source domain features.
+        target : torch.Tensor
+            Target domain features.
+
+        Returns
+        -------
+        torch.Tensor
+            L2 distance between mean feature vectors.
+
+        """
         source = torch.mean(source, dim=0)
         target = torch.mean(target, dim=0)
 
         return torch.norm(source - target)
     
     def simple_mmd_kernel(self, source, target):
+        """
+        Compute kernel-based MMD with RBF kernel.
+
+        Parameters
+        ----------
+        source : torch.Tensor
+            Source domain features.
+        target : torch.Tensor
+            Target domain features.
+
+        Returns
+        -------
+        torch.Tensor
+            RBF kernel value between mean feature vectors.
+
+        """
         source = torch.mean(source, dim=0)
         target = torch.mean(target, dim=0)
 
         return torch.exp(- 0.1 * torch.norm(source - target))
     
     def inference(self, data):
+        """
+        Perform inference on input data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data containing:
+            - x: Node features
+            - edge_index: Edge indices
+
+        Returns
+        -------
+        torch.Tensor
+            Model predictions.
+
+        Notes
+        -----
+        Simplified forward pass for inference:
+
+        1. Single GNN layer
+        2. Classification
+        """
         edge_weight = torch.ones(data.edge_index.shape[1]).to(self.device)
         z = self.gnn_emb[0](data.x, data.edge_index, edge_weight)
         pred = self.cls_model(z)
@@ -295,6 +564,22 @@ class JHGDABase(nn.Module):
         return pred
     
     def to_onehot(self, label_matrix, num_classes):
+        """
+        Convert label indices to one-hot encoding.
+
+        Parameters
+        ----------
+        label_matrix : torch.Tensor
+            Label indices.
+        num_classes : int
+            Number of classes.
+
+        Returns
+        -------
+        torch.Tensor
+            One-hot encoded labels.
+
+        """
         identity = torch.eye(num_classes).to(self.device)
         onehot = torch.index_select(identity, 0, label_matrix)
         

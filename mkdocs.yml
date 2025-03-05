@@ -2,29 +2,90 @@ site_name: PyGDA
 theme: readthedocs
 
 plugins:
+  - search
   - mkdocstrings
 
 nav:
   - GET STARTED: index.md
-  - MODELS: 
-    - GNN.md
-    - DANE.md
-    - ACDNE.md
-    - UDAGCN.md
-    - ASN.md
-    - AdaGCN.md
-    - GRADE.md
-    - SpecReg.md
-    - StruRW.md
-    - JHGDA.md
-    - KBL.md
-    - DMGNN.md
-    - CWGCN.md
-    - SAGDA.md
-    - DGDA.md
-    - A2GNN.md
-    - PairAlign.md
-    - GTrans.md
-    - SOGA.md
-    - GraphCTA.md
+  - Package Reference:
+    - pygda.nn:
+      - nn/A2GNNBase.md
+      - nn/ACDNEBase.md
+      - nn/AdaGCNBase.md
+      - nn/ASNBase.md
+      - nn/Attention.md
+      - nn/CWGCNBase.md
+      - nn/CacheGCNConv.md
+      - nn/DGDABase.md
+      - nn/DWPretrain.md
+      - nn/GMMClustering.md
+      - nn/GNNBase.md
+      - nn/GRADEBase.md
+      - nn/GradReverse.md
+      - nn/GraphATABase.md
+      - nn/JHGDABase.md
+      - nn/KBLBase.md
+      - nn/MixUpBase.md
+      - nn/MixUpGCNConv.md
+      - nn/NodeCentricConv.md
+      - nn/PPMIConv.md
+      - nn/PropGCNConv.md
+      - nn/ReweightGNN.md
+      - nn/SAGDABase.md
+      - nn/SOGABase.md
+      - nn/UDAGCNBase.md             
+    - pygda.models:
+      - models/Overview.md
+      - models/BaseGDA.md
+      - models/GNN.md
+      - models/DANE.md
+      - models/ACDNE.md
+      - models/UDAGCN.md
+      - models/ASN.md
+      - models/AdaGCN.md
+      - models/GRADE.md
+      - models/SpecReg.md
+      - models/StruRW.md
+      - models/JHGDA.md
+      - models/KBL.md
+      - models/DMGNN.md
+      - models/CWGCN.md
+      - models/SAGDA.md
+      - models/DGDA.md
+      - models/A2GNN.md
+      - models/PairAlign.md
+      - models/GTrans.md
+      - models/SOGA.md
+      - models/GraphCTA.md
+      - models/GraphATA.md
+    - pygda.datasets: 
+      - datasets/Overview.md
+      - datasets/Airport.md
+      - datasets/Arxiv.md
+      - datasets/Blog.md
+      - datasets/Citation.md
+      - datasets/Elliptic.md
+      - datasets/Facebook.md
+      - datasets/MAG.md
+      - datasets/Squirrel.md
+      - datasets/TUGraph.md
+      - datasets/Twitch.md
+      - datasets/Twitter.md
+    - pygda.metrics:
+      - metrics/Metrics.md
+    - pygda.utils:
+      - utils/MMD.md
+      - utils/Perturb.md
+      - utils/SVDTransform.md
+      - utils/Sampler.md
+      - utils/Utility.md
+  - Benchmarks:
+    - benchmark/Overview.md
+  - Cheatsheets: 
+    - cheatsheet/Dataset Cheatsheet.md
+    - cheatsheet/Model Cheatsheet.md
+  - External Resources:
+    - resources/Resources.md
 
+extra_css:
+  - assets/css/custom.css

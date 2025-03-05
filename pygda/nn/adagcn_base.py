@@ -9,6 +9,33 @@ from torch_geometric.nn import global_mean_pool
 
 
 class GNN(torch.nn.Module):
+    """
+    Generic GNN encoder supporting multiple GNN types.
+
+    Parameters
+    ----------
+    in_dim : int
+        Input feature dimension.
+    hid_dim : int
+        Hidden layer dimension.
+    gnn_type : str, optional
+        Type of GNN layer ('gcn' or 'ppmi'). Default: 'gcn'.
+    num_layers : int, optional
+        Number of GNN layers. Default: 3.
+    act : callable, optional
+        Activation function. Default: F.relu.
+    dropout : float, optional
+        Dropout rate. Default: 0.1.
+    **kwargs
+        Additional arguments for GNN layers.
+
+    Notes
+    -----
+    - Supports both GCN and PPMI convolution types
+    - Multiple layers with residual connections
+    - Configurable activation and dropout
+    """
+
     def __init__(self, in_dim, hid_dim, gnn_type='gcn', num_layers=3, act=F.relu, dropout=0.1, **kwargs):
         super(GNN, self).__init__()
 
@@ -32,6 +59,31 @@ class GNN(torch.nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, edge_index, batch, mode='node'):
+        """
+        Forward pass of the GNN.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Node features.
+        edge_index : torch.Tensor
+            Edge indices.
+        batch : torch.Tensor
+            Batch assignment for graph-level tasks.
+        mode : str, optional
+            'node' or 'graph' level task. Default: 'node'.
+
+        Returns
+        -------
+        torch.Tensor
+            Node or graph embeddings.
+
+        Notes
+        -----
+        - Applies multiple GNN layers sequentially
+        - Optional graph pooling for graph-level tasks
+        - Dropout and activation between layers
+        """
         for i, conv_layer in enumerate(self.conv_layers):
             x = conv_layer(x, edge_index)
             if i < len(self.conv_layers) - 1:
@@ -46,29 +98,36 @@ class GNN(torch.nn.Module):
 
 class AdaGCNBase(nn.Module):
     """
-    Graph Transfer Learning via Adversarial Domain Adaptation with Graph Convolution (TKDE-22).
+    Base class for AdaGCN.
 
     Parameters
     ----------
     in_dim : int
-        Input dimension of model.
+        Input feature dimension.
     hid_dim : int
-        Hidden dimension of model.
+        Hidden dimension.
     num_classes : int
-        Number of classes.
+        Number of target classes.
     num_layers : int, optional
-        Total number of layers in model. Default: ``4``.
+        Number of GNN layers. Default: 3.
     dropout : float, optional
-        Dropout rate. Default: ``0.``.
-    act : callable activation function or None, optional
-        Activation function if not None.
-        Default: ``torch.nn.functional.relu``.
-    gnn_type: string, optional
-        Use GCN or PPMIConv. Default: ``gcn``.
+        Dropout rate. Default: 0.1.
+    act : callable, optional
+        Activation function. Default: F.relu.
+    gnn_type : str, optional
+        Type of GNN ('gcn' or 'ppmi'). Default: 'gcn'.
     mode : str, optional
-        Mode for node or graph level tasks. Default: ``node``.
-    **kwargs : optional
-        Other parameters for the backbone.
+        'node' or 'graph' level task. Default: 'node'.
+    **kwargs
+        Additional arguments.
+
+    Notes
+    -----
+    Architecture components:
+    
+    1. GNN encoder for feature extraction
+    2. Classification layer
+    3. Cross-entropy loss function
     """
 
     def __init__(self,
@@ -92,6 +151,27 @@ class AdaGCNBase(nn.Module):
         self.loss_func = nn.CrossEntropyLoss()
     
     def forward(self, data):
+        """
+        Forward pass of AdaGCN.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+
+        Returns
+        -------
+        torch.Tensor
+            Node/graph embeddings.
+
+        Notes
+        -----
+        Process:
+
+        1. Extract features based on mode (node/graph)
+        2. Apply GNN encoder
+        3. Return embeddings for downstream tasks
+        """
         if self.mode == 'node':
             x, edge_index, batch = data.x, data.edge_index, None
         else:

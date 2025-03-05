@@ -102,6 +102,19 @@ class UDAGCN(BaseGDA):
         self.mode=mode
 
     def init_model(self, **kwargs):
+        """
+        Initialize the UDAGCN model.
+
+        Parameters
+        ----------
+        **kwargs
+            Other parameters for the UDAGCNBase model.
+
+        Returns
+        -------
+        UDAGCNBase
+            Initialized UDAGCN model on the specified device.
+        """
 
         return UDAGCNBase(
             in_dim=self.in_dim,
@@ -116,6 +129,39 @@ class UDAGCN(BaseGDA):
         ).to(self.device)
 
     def forward_model(self, source_data, target_data, alpha, epoch):
+        """
+        Forward pass of the model.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+        alpha : float
+            Gradient reversal scaling parameter.
+        epoch : int
+            Current training epoch.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - loss : torch.Tensor
+                Combined loss from classification, domain adaptation, and entropy.
+            - source_logits : torch.Tensor
+                Model predictions for source domain.
+            - target_logits : torch.Tensor
+                Model predictions for target domain.
+
+        Notes
+        -----
+        Combines multiple loss terms:
+        
+        - Source classification loss
+        - Domain adversarial loss
+        - Target entropy minimization loss
+        """
         encoded_source = self.udagcn.encode(source_data, "source")
         encoded_target = self.udagcn.encode(target_data, "target")
 
@@ -155,6 +201,26 @@ class UDAGCN(BaseGDA):
         return loss, source_logits, target_logits
 
     def fit(self, source_data, target_data):
+        """
+        Train the UDAGCN model.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Notes
+        -----
+        Training process includes:
+
+        - Setting up data loaders for both domains
+        - Initializing model components
+        - Training with mini-batch strategy
+        - Gradually increasing domain adaptation strength
+        - Optimizing classification and domain adaptation objectives
+        """
         if self.mode == 'node':
             self.num_source_nodes, _ = source_data.x.shape
             self.num_target_nodes, _ = target_data.x.shape
@@ -242,9 +308,46 @@ class UDAGCN(BaseGDA):
                    train=True)
     
     def process_graph(self, data):
+        """
+        Process the input graph data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data to be processed.
+
+        Notes
+        -----
+        Placeholder method for graph preprocessing.
+        """
         pass
 
     def predict(self, data, source=False):
+        """
+        Make predictions on given data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+        source : bool, optional
+            Whether the input is from source domain.
+            Default: ``False``.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - logits : torch.Tensor
+                Model predictions.
+            - labels : torch.Tensor
+                True labels.
+
+        Notes
+        -----
+        Handles both node-level and graph-level predictions
+        using appropriate pooling operations.
+        """
         for model in self.udagcn.models:
             model.eval()
         

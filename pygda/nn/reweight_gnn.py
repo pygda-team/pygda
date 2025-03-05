@@ -15,18 +15,26 @@ from torch_sparse import matmul as torch_sparse_matmul
 
 
 def spmm(src: Adj, other: Tensor, reduce: str = "sum") -> Tensor:
-    """Matrix product of sparse matrix with dense matrix.
+    """
+    Sparse matrix multiplication with dense matrix.
 
-    Args:
-        src (Tensor or torch_sparse.SparseTensor]): The input sparse matrix,
-            either a :class:`torch_sparse.SparseTensor` or a
-            :class:`torch.sparse.Tensor`.
-        other (Tensor): The input dense matrix.
-        reduce (str, optional): The reduce operation to use
-            (:obj:`"sum"`, :obj:`"mean"`, :obj:`"min"`, :obj:`"max"`).
-            (default: :obj:`"sum"`)
+    Parameters
+    ----------
+    src : Tensor or SparseTensor
+        Input sparse matrix
+    other : Tensor
+        Input dense matrix
+    reduce : str, optional
+        Reduction operation ('sum', 'mean', 'min', 'max'). Default: 'sum'
 
-    :rtype: :class:`Tensor`
+    Returns
+    -------
+    Tensor
+        Result of sparse-dense matrix multiplication
+
+    Notes
+    -----
+    Supports different sparse formats and reduction operations
     """
     assert reduce in ['sum', 'add', 'mean', 'min', 'max']
 
@@ -41,60 +49,27 @@ def spmm(src: Adj, other: Tensor, reduce: str = "sum") -> Tensor:
                      f"`torch.sparse.Tensor`.")
 
 class GCN_reweight(pyg_nn.MessagePassing):
-    r"""The graph convolutional operator from the `"Semi-supervised
-    Classification with Graph Convolutional Networks"
-    <https://arxiv.org/abs/1609.02907>`_ paper
+    """
+    Graph Convolutional Network with edge reweighting mechanism.
 
-    .. math::
-        \mathbf{X}^{\prime} = \mathbf{\hat{D}}^{-1/2} \mathbf{\hat{A}}
-        \mathbf{\hat{D}}^{-1/2} \mathbf{X} \mathbf{\Theta},
-
-    where :math:`\mathbf{\hat{A}} = \mathbf{A} + \mathbf{I}` denotes the
-    adjacency matrix with inserted self-loops and
-    :math:`\hat{D}_{ii} = \sum_{j=0} \hat{A}_{ij}` its diagonal degree matrix.
-    The adjacency matrix can include other values than :obj:`1` representing
-    edge weights via the optional :obj:`edge_weight` tensor.
-
-    Its node-wise formulation is given by:
-
-    .. math::
-        \mathbf{x}^{\prime}_i = \mathbf{\Theta}^{\top} \sum_{j \in
-        \mathcal{N}(v) \cup \{ i \}} \frac{e_{j,i}}{\sqrt{\hat{d}_j
-        \hat{d}_i}} \mathbf{x}_j
-
-    with :math:`\hat{d}_i = 1 + \sum_{j \in \mathcal{N}(i)} e_{j,i}`, where
-    :math:`e_{j,i}` denotes the edge weight from source node :obj:`j` to target
-    node :obj:`i` (default: :obj:`1.0`)
-
-    Args:
-        in_channels (int): Size of each input sample, or :obj:`-1` to derive
-            the size from the first input(s) to the forward method.
-        out_channels (int): Size of each output sample.
-        improved (bool, optional): If set to :obj:`True`, the layer computes
-            :math:`\mathbf{\hat{A}}` as :math:`\mathbf{A} + 2\mathbf{I}`.
-            (default: :obj:`False`)
-        cached (bool, optional): If set to :obj:`True`, the layer will cache
-            the computation of :math:`\mathbf{\hat{D}}^{-1/2} \mathbf{\hat{A}}
-            \mathbf{\hat{D}}^{-1/2}` on first execution, and will use the
-            cached version for further executions.
-            This parameter should only be set to :obj:`True` in transductive
-            learning scenarios. (default: :obj:`False`)
-        add_self_loops (bool, optional): If set to :obj:`False`, will not add
-            self-loops to the input graph. (default: :obj:`True`)
-        normalize (bool, optional): Whether to add self-loops and compute
-            symmetric normalization coefficients on the fly.
-            (default: :obj:`True`)
-        bias (bool, optional): If set to :obj:`False`, the layer will not learn
-            an additive bias. (default: :obj:`True`)
-        **kwargs (optional): Additional arguments of
-            :class:`torch_geometric.nn.conv.MessagePassing`.
-
-    Shapes:
-        - **input:**
-          node features :math:`(|\mathcal{V}|, F_{in})`,
-          edge indices :math:`(2, |\mathcal{E}|)`,
-          edge weights :math:`(|\mathcal{E}|)` *(optional)*
-        - **output:** node features :math:`(|\mathcal{V}|, F_{out})`
+    Parameters
+    ----------
+    in_channels : int
+        Input feature dimensionality
+    out_channels : int
+        Output feature dimensionality
+    aggr : str
+        Aggregation method ('add', 'mean', etc.)
+    improved : bool, optional
+        If True, use improved GCN normalization. Default: False
+    cached : bool, optional
+        Whether to cache normalized adjacency matrix. Default: False
+    add_self_loops : bool, optional
+        Whether to add self-loops. Default: False
+    normalize : bool, optional
+        Whether to apply normalization. Default: True for non-add aggregation
+    bias : bool, optional
+        Whether to include bias. Default: True
     """
 
     _cached_edge_index: Optional[OptPairTensor]
@@ -145,6 +120,44 @@ class GCN_reweight(pyg_nn.MessagePassing):
 
 
     def forward(self, x, edge_index, edge_weight, lmda):
+        """
+        Forward pass of the reweighted GCN layer.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Node feature matrix [num_nodes, in_channels]
+        edge_index : torch.Tensor or SparseTensor
+            Graph connectivity in COO format [2, num_edges] or sparse format
+        edge_weight : torch.Tensor
+            Edge weights for reweighting [num_edges]
+        lmda : float
+            Interpolation factor between normalized and reweighted adjacency
+
+        Returns
+        -------
+        torch.Tensor
+            Updated node features [num_nodes, out_channels]
+
+        Notes
+        -----
+        - Edge Weight Processing:
+            
+            * Store original weights as reweighting values
+            * Initialize base weights as ones
+        
+        - Normalization (if enabled):
+            
+            * Compute symmetric normalization if not cached
+            * Use cached values if available
+            * Handle both dense and sparse formats
+        
+        - Feature Transformation:
+            
+            * Linear projection of input features
+            * Message passing with interpolated weights
+            * Optional bias addition
+        """
         edge_rw = edge_weight
         edge_weight = torch.ones_like(edge_rw)
         if self.normalize:
@@ -181,15 +194,83 @@ class GCN_reweight(pyg_nn.MessagePassing):
         return out
 
     def message(self, x_j, edge_index, edge_weight, edge_rw, lmda):
+        """
+        Compute messages from source nodes with edge reweighting.
+
+        Parameters
+        ----------
+        x_j : torch.Tensor
+            Source node features [num_edges, out_channels]
+        edge_index : torch.Tensor
+            Edge indices [2, num_edges]
+        edge_weight : torch.Tensor
+            Normalized edge weights [num_edges]
+        edge_rw : torch.Tensor
+            Original edge weights for reweighting [num_edges]
+        lmda : float
+            Interpolation factor between normalized and reweighted messages
+
+        Returns
+        -------
+        torch.Tensor
+            Computed messages with interpolated weights [num_edges, out_channels]
+
+        Notes
+        -----
+        - Computes messages with interpolated weights
+        - Handles both normalized and original edge weights
+        """
         x_j = (edge_weight.view(-1, 1) * x_j)
         x_j = (1-lmda) * x_j + (lmda) * (edge_rw.view(-1, 1) * x_j)
         return x_j
 
     def message_and_aggregate(self, adj_t: SparseTensor, x: Tensor) -> Tensor:
+        """
+        Fused message computation and aggregation for sparse tensors.
+
+        Parameters
+        ----------
+        adj_t : SparseTensor
+            Transposed adjacency matrix in sparse format
+        x : torch.Tensor
+            Node feature matrix [num_nodes, out_channels]
+
+        Returns
+        -------
+        torch.Tensor
+            Aggregated messages [num_nodes, out_channels]
+
+        Notes
+        -----
+        - Optimized sparse matrix multiplication
+        - Uses specified aggregation method (sum, mean, etc.)
+        - More efficient than separate message and aggregation
+        """
         return spmm(adj_t, x, reduce=self.aggr)
 
 
 class GS_reweight(pyg_nn.MessagePassing):
+    """
+    GraphSAGE with edge reweighting mechanism.
+
+    Parameters
+    ----------
+    in_channels : int
+        Input feature dimensionality
+    out_channels : int
+        Output feature dimensionality
+    reducer : str
+        Aggregation method
+    normalize_embedding : bool, optional
+        Whether to normalize output embeddings. Default: False
+
+    Notes
+    -----
+    - Two-layer transformation (neighbor + self)
+    - Edge weight interpolation
+    - Optional embedding normalization
+    """
+
     def __init__(self, in_channels, out_channels, reducer, normalize_embedding=False):
         super(GS_reweight, self).__init__(aggr=reducer, flow ="target_to_source")
         self.lin = torch.nn.Linear(in_channels, out_channels)
@@ -198,16 +279,89 @@ class GS_reweight(pyg_nn.MessagePassing):
         self.normalize_emb = normalize_embedding
 
     def forward(self, x, edge_index, edge_weight, lmda):
+        """
+        Forward pass of the reweighted GraphSAGE layer.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Node feature matrix [num_nodes, in_channels]
+        edge_index : torch.Tensor
+            Graph connectivity in COO format [2, num_edges]
+        edge_weight : torch.Tensor
+            Edge weights for reweighting [num_edges]
+        lmda : float
+            Interpolation factor for edge weight importance
+
+        Returns
+        -------
+        torch.Tensor
+            Updated node features [num_nodes, out_channels]
+
+        Notes
+        -----
+        Initiates message passing with proper graph size information
+        """
         num_nodes = x.size(0)
         return self.propagate(edge_index, size=(num_nodes, num_nodes), x=x, edge_weight=edge_weight, lmda=lmda)
 
     def message(self, x_j, edge_index, edge_weight, lmda):
+        """
+        Compute messages from source nodes with edge reweighting.
+
+        Parameters
+        ----------
+        x_j : torch.Tensor
+            Source node features [num_edges, in_channels]
+        edge_index : torch.Tensor
+            Edge indices [2, num_edges]
+        edge_weight : torch.Tensor
+            Edge weights [num_edges]
+        lmda : float
+            Interpolation factor between base and weighted features
+
+        Returns
+        -------
+        torch.Tensor
+            Transformed and reweighted messages [num_edges, out_channels]
+
+        Notes
+        -----        
+        - Linear transformation of source features
+            
+        - Interpolation between:
+            
+            * Transformed features (weight: 1-λ)
+            * Edge-weighted features (weight: λ)
+        """
         x_j = self.lin(x_j)
         x_j = (1-lmda) * x_j + (lmda) * (edge_weight.view(-1, 1) * x_j)
 
         return x_j
 
     def update(self, aggr_out, x):
+        """
+        Update node embeddings using aggregated messages and self-features.
+
+        Parameters
+        ----------
+        aggr_out : torch.Tensor
+            Aggregated messages [num_nodes, out_channels]
+        x : torch.Tensor
+            Original node features [num_nodes, in_channels]
+
+        Returns
+        -------
+        torch.Tensor
+            Updated node embeddings [num_nodes, out_channels]
+
+        Notes
+        -----
+        - Concatenate aggregated messages with self-features
+        - Apply learnable transformation
+        - Non-linear activation (ReLU)
+        - Optional L2 normalization
+        """
         aggr_out = torch.cat((aggr_out, x), dim=-1)
         aggr_out = self.agg_lin(aggr_out)
         aggr_out = F.relu(aggr_out)
@@ -219,6 +373,42 @@ class GS_reweight(pyg_nn.MessagePassing):
 
 
 class ReweightGNN(torch.nn.Module):
+    """
+    Multi-layer GNN with edge reweighting mechanism.
+
+    Parameters
+    ----------
+    input_dim : int
+        Input feature dimensionality
+    gnn_dim : int
+        Hidden dimension of GNN layers
+    output_dim : int
+        Output dimension
+    cls_dim : int
+        Hidden dimension of classification layers
+    gnn_layers : int, optional
+        Number of GNN layers. Default: 3
+    cls_layers : int, optional
+        Number of classification layers. Default: 2
+    backbone : str, optional
+        GNN architecture ('GCN' or 'GS'). Default: 'GS'
+    pooling : str, optional
+        Pooling method. Default: 'mean'
+    dropout : float, optional
+        Dropout rate. Default: 0.5
+    bn : bool, optional
+        Whether to use batch normalization. Default: False
+    rw_lmda : float, optional
+        Edge reweighting interpolation factor. Default: 1.0
+
+    Notes
+    -----
+    - Multiple GNN layers with reweighting
+    - Optional batch normalization
+    - Multi-layer classification head
+    - Dropout regularization
+    """
+
     def __init__(
         self,
         input_dim,
@@ -270,6 +460,29 @@ class ReweightGNN(torch.nn.Module):
             self.mlp_classify.append(nn.Linear(cls_dim, output_dim))
 
     def forward(self, data, h):
+        """
+        Forward pass of the network.
+
+        Parameters
+        ----------
+        data : Data
+            Graph data object containing edge indices and weights
+        h : Tensor
+            Input node features
+
+        Returns
+        -------
+        tuple[Tensor, Tensor]
+            - Node embeddings after GNN layers
+            - Classification logits
+
+        Notes
+        -----
+        - GNN propagation with reweighting
+        - Activation and dropout
+        - Classification MLP
+        - Optional batch normalization
+        """
         x, edge_index, edge_weight = h, data.edge_index, data.edge_weight
         for i, layer in enumerate(self.conv):
             x = layer(x, edge_index, edge_weight, self.lmda)

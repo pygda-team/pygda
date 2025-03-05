@@ -125,6 +125,27 @@ class GTrans(BaseGDA):
         self.make_undirected=make_undirected
 
     def init_model(self, **kwargs):
+        """
+        Initialize the GTrans base model.
+
+        Parameters
+        ----------
+        **kwargs
+            Additional parameters for model initialization.
+
+        Returns
+        -------
+        GNNBase
+            Initialized model with specified GNN backbone.
+
+        Notes
+        -----
+        Configures base GNN model with:
+        
+        - Specified backbone architecture (GCN by default)
+        - Layer dimensions and dropout
+        - Activation functions
+        """
 
         return GNNBase(
             in_dim=self.in_dim,
@@ -136,10 +157,44 @@ class GTrans(BaseGDA):
             **kwargs
         ).to(self.device)
     
-    def forward_model(self, data,  **kwargs):
+    def forward_model(self, data, **kwargs):
+        """
+        Forward pass placeholder for GTrans model.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+        **kwargs
+            Additional arguments.
+
+        Notes
+        -----
+        Placeholder method as GTrans implements custom forward logic through:
+
+        - Source domain training in train_source()
+        - Test-time adaptation in fit()
+        - Prediction using transformed graphs in predict()
+        """
         pass
-    
+
     def train_source(self, optimizer):
+        """
+        Train the model on source domain data.
+
+        Parameters
+        ----------
+        optimizer : torch.optim.Optimizer
+            Optimizer for model parameters.
+
+        Notes
+        -----
+        - Performs standard supervised training on source domain
+        - Computes cross-entropy loss on labeled data
+        - Tracks and logs training metrics
+        - Uses full batch training only
+        """
+
         for epoch in range(self.epoch):
             epoch_loss = 0
             epoch_source_logits = None
@@ -175,6 +230,39 @@ class GTrans(BaseGDA):
                 train=True)
 
     def fit(self, source_data, target_data):
+        """
+        Train the GTrans model with test-time graph transformation.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Notes
+        -----
+        Implementation steps:
+
+        Source Training
+        
+        - Pretrains model on source domain
+        - Freezes model parameters after source training
+
+        Target Adaptation
+        
+        - Initializes feature and structure perturbations
+        - Alternates between feature and structure optimization
+        - Uses test-time loss for adaptation
+        - Maintains perturbation budget constraints
+
+        Edge Sampling
+        
+        - Samples final edge structure
+        - Ensures connectivity constraints
+        - Maintains undirected property if specified
+        """
+
         if self.batch_size == 0:
             self.source_batch_size = source_data.x.shape[0]
             self.source_loader = NeighborLoader(
@@ -274,6 +362,25 @@ class GTrans(BaseGDA):
 
     
     def update_edge_weights(self, gradient, optimizer_adj, perturbed_edge_weight):
+        """
+        Update edge weights using gradient information.
+
+        Parameters
+        ----------
+        gradient : torch.Tensor
+            Computed gradients for edge weights.
+        optimizer_adj : torch.optim.Optimizer
+            Optimizer for edge weights.
+        perturbed_edge_weight : torch.Tensor
+            Current edge weights to be updated.
+
+        Notes
+        -----
+        - Applies gradient updates to edge weights
+        - Maintains minimum weight threshold
+        - Uses Adam optimizer for updates
+        """
+
         optimizer_adj.zero_grad()
         perturbed_edge_weight.grad = gradient
         optimizer_adj.step()
@@ -281,6 +388,39 @@ class GTrans(BaseGDA):
     
     @torch.no_grad()
     def sample_final_edges(self, n_perturbations, perturbed_edge_weight, data, modified_edge_index, n):
+        """
+        Sample final edge structure based on learned weights.
+
+        Parameters
+        ----------
+        n_perturbations : int
+            Maximum number of allowed edge modifications.
+        perturbed_edge_weight : torch.Tensor
+            Learned edge weights.
+        data : torch_geometric.data.Data
+            Target graph data.
+        modified_edge_index : torch.Tensor
+            Modified edge indices.
+        n : int
+            Number of nodes.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - edge_index : torch.Tensor
+                Final edge structure.
+            - edge_weight : torch.Tensor
+                Final edge weights.
+
+        Notes
+        -----
+        - Uses iterative sampling strategy
+        - Maintains best performing structure
+        - Ensures perturbation budget constraints
+        - Handles undirected graph requirements
+        """
+
         best_loss = float('Inf')
         perturbed_edge_weight = perturbed_edge_weight.detach()
         perturbed_edge_weight[perturbed_edge_weight <= 1e-7] = 0
@@ -331,9 +471,51 @@ class GTrans(BaseGDA):
         return edge_index[:, edge_mask], edge_weight[edge_mask]
     
     def process_graph(self, data):
+        """
+        Process input graph data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph to be processed.
+
+        Notes
+        -----
+        Placeholder method as graph processing is handled through:
+        
+        - Feature perturbation optimization
+        - Structure modification via edge sampling
+        - Graph augmentation strategies in augment()
+        - Test-time transformation procedures
+        """
         pass
-    
+
     def test_time_loss(self, feat, edge_index, edge_weight=None):
+        """
+        Compute test-time adaptation loss.
+
+        Parameters
+        ----------
+        feat : torch.Tensor
+            Node features.
+        edge_index : torch.Tensor
+            Edge indices.
+        edge_weight : torch.Tensor, optional
+            Edge weights.
+
+        Returns
+        -------
+        torch.Tensor
+            Computed loss value.
+
+        Notes
+        -----
+        - Implements contrastive learning objective
+        - Uses different augmentation strategies
+        - Supports margin-based loss variant
+        - Compares different graph views
+        """
+
         loss = 0
         
         if self.strategy == 'dropedge':
@@ -350,6 +532,35 @@ class GTrans(BaseGDA):
         return loss
 
     def augment(self, feat, edge_index=None, edge_weight=None, p=0.5, strategy='dropedge'):
+        """
+        Apply graph augmentation for contrastive learning.
+
+        Parameters
+        ----------
+        feat : torch.Tensor
+            Node features.
+        edge_index : torch.Tensor, optional
+            Edge indices.
+        edge_weight : torch.Tensor, optional
+            Edge weights.
+        p : float, optional
+            Augmentation probability.
+        strategy : str, optional
+            Augmentation strategy ('dropedge' or 'shuffle').
+
+        Returns
+        -------
+        torch.Tensor
+            Augmented graph representations.
+
+        Notes
+        -----
+        Supports two strategies:
+
+        - dropedge: Randomly drops edges
+        - shuffle: Randomly shuffles node features
+        """
+
         if strategy == 'dropedge':
             edge_index, edge_weight = dropout_adj(edge_index, edge_weight, p=p)
             output = self.gtrans.feat_bottleneck(feat, edge_index, edge_weight)
@@ -362,6 +573,30 @@ class GTrans(BaseGDA):
         return output
 
     def predict(self, data):
+        """
+        Make predictions using transformed graph.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - logits : torch.Tensor
+                Model predictions.
+            - labels : torch.Tensor
+                True labels.
+
+        Notes
+        -----
+        - Uses optimized feature and structure
+        - Applies final graph transformation
+        - Returns predictions and ground truth
+        """
+
         self.gtrans.eval()
 
         logits = self.gtrans(self.new_feat, self.edge_index, self.edge_weight)

@@ -110,6 +110,28 @@ class SOGA(BaseGDA):
         self.neigh_lambda=neigh_lambda
 
     def init_model(self, **kwargs):
+        """
+        Initialize the SOGA base model.
+
+        Parameters
+        ----------
+        **kwargs
+            Additional parameters for model initialization.
+
+        Returns
+        -------
+        SOGABase
+            Initialized model with specified parameters.
+
+        Notes
+        -----
+        Configures model with:
+
+        - GNN backbone architecture
+        - NCE loss parameters
+        - Sampling configurations
+        - Model dimensions and dropout
+        """
 
         return SOGABase(
             in_dim=self.in_dim,
@@ -126,9 +148,43 @@ class SOGA(BaseGDA):
         ).to(self.device)
     
     def forward_model(self, data,  **kwargs):
+        """
+        Forward pass placeholder for SOGA model.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+        **kwargs
+            Additional arguments.
+
+        Notes
+        -----
+        Placeholder method as SOGA implements custom forward logic through:
+        
+        - Source domain training in train_source()
+        - Target domain adaptation in train_target()
+        - Prediction using adapted model in predict()
+        - NCE-based contrastive learning
+        """
         pass
     
     def train_source(self, optimizer):
+        """
+        Train the model on source domain data.
+
+        Parameters
+        ----------
+        optimizer : torch.optim.Optimizer
+            Optimizer for model parameters.
+
+        Notes
+        -----
+        - Performs supervised training on source domain
+        - Uses cross-entropy loss for classification
+        - Tracks training metrics and loss
+        - Handles batch processing if specified
+        """
         for epoch in range(self.epoch):
             epoch_loss = 0
             epoch_source_logits = None
@@ -164,6 +220,25 @@ class SOGA(BaseGDA):
                 train=True)
     
     def train_target(self, target_data, optimizer):
+        """
+        Adapt the model to target domain.
+
+        Parameters
+        ----------
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+        optimizer : torch.optim.Optimizer
+            Optimizer for model parameters.
+
+        Notes
+        -----
+        Implementation includes:
+
+        - Initialization of target domain samples
+        - NCE loss computation for structure and neighborhood
+        - Information maximization loss
+        - Combined optimization objective
+        """
         self.soga.init_target(target_data.clone(), target_data)
 
         for epoch in range(self.epoch):
@@ -198,6 +273,24 @@ class SOGA(BaseGDA):
                 train=True)
     
     def entropy(self, x):
+        """
+        Calculate entropy of probability distribution.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input probability distribution.
+
+        Returns
+        -------
+        torch.Tensor
+            Computed entropy values.
+
+        Notes
+        -----
+        - Handles numerical stability with epsilon
+        - Computes per-sample entropy
+        """
         batch_size, num_feature = x.size()
         epsilon = 1e-5
         ent = -x * torch.log(x + epsilon)
@@ -206,17 +299,73 @@ class SOGA(BaseGDA):
         return ent
     
     def ent(self, softmax_output):
+        """
+        Calculate mean entropy across samples.
+
+        Parameters
+        ----------
+        softmax_output : torch.Tensor
+            Softmax probabilities.
+
+        Returns
+        -------
+        torch.Tensor
+            Mean entropy loss.
+        """
         entropy_loss = torch.mean(self.entropy(softmax_output))
 
         return entropy_loss
 
     def div(self, softmax_output):
+        """
+        Calculate diversity loss.
+
+        Parameters
+        ----------
+        softmax_output : torch.Tensor
+            Softmax probabilities.
+
+        Returns
+        -------
+        torch.Tensor
+            Diversity loss value.
+
+        Notes
+        -----
+        - Computes negative entropy of mean predictions
+        - Encourages uniform class distribution
+        """
         mean_softmax_output = softmax_output.mean(dim = 0)
         diversity_loss = torch.sum(-mean_softmax_output * torch.log(mean_softmax_output + 1e-8))
         
         return diversity_loss
     
     def NCE_loss(self, outputs, center_nodes, positive_samples, negative_samples):
+        """
+        Compute Noise Contrastive Estimation loss.
+
+        Parameters
+        ----------
+        outputs : torch.Tensor
+            Model output probabilities.
+        center_nodes : torch.Tensor
+            Indices of center nodes.
+        positive_samples : torch.Tensor
+            Indices of positive samples.
+        negative_samples : torch.Tensor
+            Indices of negative samples.
+
+        Returns
+        -------
+        torch.Tensor
+            NCE loss value.
+
+        Notes
+        -----
+        - Implements InfoNCE-style contrastive loss
+        - Handles both structural and neighborhood contrasts
+        - Uses temperature-scaled dot product similarity
+        """
         negative_embedding = F.embedding(negative_samples, outputs).to(self.device)
         positive_embedding = F.embedding(positive_samples, outputs).to(self.device)
         center_embedding = F.embedding(center_nodes, outputs).to(self.device)
@@ -237,6 +386,31 @@ class SOGA(BaseGDA):
         return loss
 
     def fit(self, source_data, target_data):
+        """
+        Train the SOGA model on source and target domains.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Notes
+        -----
+        Training process:
+
+        Source Pretraining
+        
+        - Supervised training on source domain
+        - Classification loss optimization
+
+        Target Adaptation
+        
+        - Unsupervised adaptation
+        - NCE loss for structure and neighborhood
+        - Information maximization
+        """
         if self.batch_size == 0:
             self.source_batch_size = source_data.x.shape[0]
             self.source_loader = NeighborLoader(
@@ -277,9 +451,49 @@ class SOGA(BaseGDA):
 
     
     def process_graph(self, data):
+        """
+        Process input graph data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph to be processed.
+
+        Notes
+        -----
+        Placeholder method as graph processing is handled through:
+
+        - Positive/negative sample generation
+        - Neighborhood structure analysis
+        - Information maximization computations
+        - Batch-wise data handling in training methods
+        """
         pass
 
     def predict(self, data):
+        """
+        Make predictions on target domain data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - logits : torch.Tensor
+                Model predictions.
+            - labels : torch.Tensor
+                True labels.
+
+        Notes
+        -----
+        - Evaluates model in inference mode
+        - Handles batch processing
+        - Concatenates predictions for full graph
+        """
         self.soga.eval()
         
         for idx, sampled_data in enumerate(self.target_loader):

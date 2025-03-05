@@ -12,36 +12,37 @@ from ..utils import RandomWalker, Negative_Sampler
 
 class SOGABase(nn.Module):
     """
-    Source Free Graph Unsupervised Domain Adaptation (WSDM-24).
+    Base class for SOGA.
 
     Parameters
     ----------
     in_dim : int
-        Input dimension of model.
+        Input feature dimensionality
     hid_dim : int
-        Hidden dimension of model.
+        Hidden feature dimensionality
     num_classes : int
-        Number of classes.
+        Number of target classes
     num_layers : int, optional
-        Total number of layers in model. Default: ``4``.
+        Number of GNN layers. Default: 1
     dropout : float, optional
-        Dropout rate. Default: ``0.``.
-    act : callable activation function or None, optional
-        Activation function if not None.
-        Default: ``torch.nn.functional.relu``.
-    gnn : string, optional
-        The backbone of GNN model.
-        Default: ``gcn``.
+        Dropout rate. Default: 0.1
+    act : callable, optional
+        Activation function. Default: F.relu
+    gnn : str, optional
+        GNN backbone type ('gcn', 'sage', 'gat', 'gin'). Default: 'gcn'
     num_negative_samples : int, optional
-        The number of negative samples in NCE loss.
-        Default: ``5``.
+        Number of negative samples for NCE loss. Default: 5
     num_positive_samples : int, optional
-        The number of positive samples in NCE loss.
-        Default: ``2``.
+        Number of positive samples for NCE loss. Default: 2
     device : str, optional
-        GPU or CPU. Default: ``cuda:0``.
-    **kwargs : optional
-        Other parameters for the backbone.
+        Computing device. Default: 'cuda:0'
+
+    Notes
+    -----
+    - Flexible GNN backbone selection
+    - Multi-layer design
+    - NCE-based learning
+    - Customized cross-entropy
     """
 
     def __init__(self,
@@ -103,12 +104,59 @@ class SOGABase(nn.Module):
 
             
     def forward(self, x, edge_index, edge_weight=None):
+        """
+        Forward pass through the SOGA model.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Node feature matrix [num_nodes, in_dim]
+        edge_index : torch.Tensor
+            Graph connectivity [2, num_edges]
+        edge_weight : torch.Tensor, optional
+            Edge weights [num_edges]. Default: None
+
+        Returns
+        -------
+        torch.Tensor
+            Node classification logits [num_nodes, num_classes]
+
+        Notes
+        -----
+        Two-stage process:
+        
+        - Feature transformation (bottleneck)
+        - Classification
+        """
         x = self.feat_bottleneck(x, edge_index, edge_weight)
         x = self.feat_classifier(x) 
 
         return x
     
     def feat_bottleneck(self, x, edge_index, edge_weight=None):
+        """
+        Feature transformation through GNN layers.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Node feature matrix [num_nodes, in_dim]
+        edge_index : torch.Tensor
+            Graph connectivity [2, num_edges]
+        edge_weight : torch.Tensor, optional
+            Edge weights [num_edges]. Default: None
+
+        Returns
+        -------
+        torch.Tensor
+            Transformed node features [num_nodes, hid_dim]
+
+        Notes
+        -----
+        - Sequential GNN layers
+        - Intermediate activation
+        - Dropout regularization
+        """
         for i, conv in enumerate(self.convs):
             x = conv(x, edge_index, edge_weight)
             if i < len(self.convs) - 1:
@@ -118,11 +166,44 @@ class SOGABase(nn.Module):
         return x
     
     def feat_classifier(self, x):
+        """
+        Classification layer for node features.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Node feature matrix [num_nodes, hid_dim]
+
+        Returns
+        -------
+        torch.Tensor
+            Classification logits [num_nodes, num_classes]
+
+        Notes
+        -----
+        Simple linear transformation from hidden to output dimension
+        """
         x = self.cls(x)
-        
         return x
     
     def init_target(self, graph_struct, graph_neigh):
+        """
+        Initialize target domain samplers and structures.
+
+        Parameters
+        ----------
+        graph_struct : Data
+            Structural graph data
+        graph_neigh : Data
+            Neighborhood graph data
+
+        Notes
+        -----
+        - NetworkX graph conversions
+        - Random walk samplers
+        - Positive/negative samples
+        - Both structural and neighborhood views
+        """
         self.target_G_struct = to_networkx(graph_struct)
         self.target_G_neigh = to_networkx(graph_neigh)
         
@@ -137,6 +218,23 @@ class SOGABase(nn.Module):
         self.negative_samples_neigh = self.generate_negative_samples(graph_neigh.x.size(0))
     
     def generate_positive_samples(self):
+        """
+        Generate positive samples using random walks.
+
+        Returns
+        -------
+        tuple[torch.Tensor, torch.Tensor]
+            Contains:
+
+            - Center nodes [num_samples, 1]
+            - Positive samples [num_samples, 1]
+
+        Notes
+        -----
+        - Biased random walks (p=0.25, q=2)
+        - Walk length based on num_positive_samples
+        - Single walk per node
+        """
         self.Positive_Sampler.preprocess_transition_probs()        
         self.positive_samples = self.Positive_Sampler.simulate_walks(num_walks=1, walk_length=self.num_positive_samples, workers=1, verbose=1)
         for i in range(len(self.positive_samples)):
@@ -151,12 +249,44 @@ class SOGABase(nn.Module):
         return center_nodes, positive_samples
 
     def generate_negative_samples(self, num_target_nodes):
+        """
+        Generate negative samples for contrastive learning.
+
+        Parameters
+        ----------
+        num_target_nodes : int
+            Number of nodes in target graph
+
+        Returns
+        -------
+        torch.Tensor
+            Negative samples [num_nodes, num_negative_samples]
+
+        Notes
+        -----
+        Generates fixed number of negative samples per node
+        """
         negative_samples = torch.tensor([self.Negative_Sampler.sample() for _ in range(self.num_negative_samples * num_target_nodes)]).view([num_target_nodes, self.num_negative_samples]).to(self.device)
 
         return negative_samples
 
 
 class CustomizedCrossEntropy(nn.Module):
+    """
+    Label-smoothed cross entropy loss with optional reduction.
+
+    Parameters
+    ----------
+    num_classes : int
+        Number of target classes
+    device : str
+        Computing device for tensors
+    epsilon : float, optional
+        Label smoothing factor. Default: 0.1
+    reduction : bool, optional
+        Whether to return mean loss. Default: True
+    """
+
     def __init__(self, num_classes, device, epsilon=0.1, reduction=True):
         super(CustomizedCrossEntropy, self).__init__()
         self.num_classes = num_classes
@@ -166,6 +296,29 @@ class CustomizedCrossEntropy(nn.Module):
         self.logsoftmax = nn.LogSoftmax(dim=1)
 
     def forward(self, outputs, targets):
+        """
+        Compute label-smoothed cross entropy loss.
+
+        Parameters
+        ----------
+        outputs : torch.Tensor
+            Model predictions [batch_size, num_classes]
+        targets : torch.Tensor
+            Target class indices [batch_size]
+
+        Returns
+        -------
+        torch.Tensor
+            Loss value (scalar if reduction=True, else [batch_size])
+
+        Notes
+        -----
+        - Compute log probabilities
+        - Create one-hot targets
+        - Apply label smoothing
+        - Compute loss
+        - Optional reduction
+        """
         batch_size, feature_dim = outputs.size()
         log_probs = self.logsoftmax(outputs)
         targets = torch.zeros(log_probs.size()).scatter_(1, targets.unsqueeze(1).cpu(), 1)

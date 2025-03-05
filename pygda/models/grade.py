@@ -100,6 +100,19 @@ class GRADE(BaseGDA):
         self.mode=mode
 
     def init_model(self, **kwargs):
+        """
+        Initialize the GRADE model.
+
+        Parameters
+        ----------
+        **kwargs
+            Other parameters for the GRADEBase model.
+
+        Returns
+        -------
+        GRADEBase
+            Initialized GRADE model on the specified device.
+        """
 
         return GRADEBase(
             in_dim=self.in_dim,
@@ -114,6 +127,37 @@ class GRADE(BaseGDA):
         ).to(self.device)
 
     def forward_model(self, source_data, target_data, alpha):
+        """
+        Forward pass of the model.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+        alpha : float
+            Gradient reversal scaling parameter.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - loss : torch.Tensor
+                Combined loss from classification and domain adaptation.
+            - source_logits : torch.Tensor
+                Model predictions for source domain.
+            - target_logits : torch.Tensor
+                Model predictions for target domain.
+
+        Notes
+        -----
+        Computes multiple loss terms:
+        
+        - Cross entropy loss for source domain
+        - Domain adaptation loss (JS-divergence, MMD, or Conditional)
+        - Weighted combination of both losses
+        """
         # source domain cross entropy loss
         source_logits, source_feats = self.grade(source_data)
         target_logits, target_feats = self.grade(target_data)
@@ -153,6 +197,26 @@ class GRADE(BaseGDA):
         return loss, source_logits, target_logits
 
     def fit(self, source_data, target_data):
+        """
+        Train the GRADE model.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Notes
+        -----
+        Training process includes:
+
+        - Setting up appropriate data loaders based on mode (node/graph)
+        - Initializing model and optimizer
+        - Training with dynamic gradient reversal parameter
+        - Supporting both node-level and graph-level tasks
+        - Computing and logging training metrics
+        """
         if self.mode == 'node':
             self.num_source_nodes, _ = source_data.x.shape
             self.num_target_nodes, _ = target_data.x.shape
@@ -237,9 +301,47 @@ class GRADE(BaseGDA):
                    train=True)
     
     def process_graph(self, data):
+        """
+        Process the input graph data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data to be processed.
+
+        Notes
+        -----
+        Placeholder method for graph preprocessing.
+        """
         pass
 
     def predict(self, data, source=False):
+        """
+        Make predictions on given data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+        source : bool, optional
+            Whether the input is from source domain.
+            Default: ``False``.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - logits : torch.Tensor
+                Model predictions.
+            - labels : torch.Tensor
+                True labels.
+
+        Notes
+        -----
+        - Uses appropriate data loader based on domain (source/target)
+        - Returns both logits and ground truth labels
+        - Handles batched predictions for large graphs
+        """
         self.grade.eval()
 
         if source:

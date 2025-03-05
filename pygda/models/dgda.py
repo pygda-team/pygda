@@ -134,6 +134,28 @@ class DGDA(BaseGDA):
         self.edge_drop_rate = edge_drop_rate
 
     def init_model(self, **kwargs):
+        """
+        Initialize the DGDA base model.
+
+        Parameters
+        ----------
+        **kwargs
+            Additional parameters for model initialization.
+
+        Returns
+        -------
+        DGDABase
+            Initialized model with specified architecture parameters.
+
+        Notes
+        -----
+        Configures model with:
+
+        - Encoder-decoder architecture
+        - Multiple latent spaces (domain, semantic, random)
+        - Pretrained embeddings for both domains
+        - GCN backbone for feature extraction
+        """
 
         return DGDABase(
             in_dim=self.in_dim,
@@ -153,9 +175,72 @@ class DGDA(BaseGDA):
         ).to(self.device)
 
     def forward_model(self, source_data, target_data):
+        """
+        Forward pass of the DGDA model.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Notes
+        -----
+        Placeholder method as the main forward logic is implemented
+        in the fit method, which handles:
+        
+        - Multiple latent space encoding
+        - Graph reconstruction
+        - Domain discrimination
+        - Classification
+        - Edge manipulation
+
+        The complex nature of DGDA's generative approach requires
+        integrated processing of both domains with access to the
+        full training context, hence implementation in fit method.
+        """
         pass
 
     def fit(self, source_data, target_data):
+        """
+        Train the DGDA model on source and target domain data.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Notes
+        -----
+        Training process consists of multiple stages:
+
+        Pretraining Stage
+
+        - DeepWalk pretraining for source domain
+        - DeepWalk pretraining for target domain
+        - Embedding initialization
+
+        Main Training Loop
+
+        - Processes original graphs
+        - Computes multiple losses:
+            
+            * Reconstruction loss
+            * KL divergence for latent spaces
+            * Classification loss
+            * Domain adversarial loss
+            * Entropy maximization
+        
+        Manipulation Training
+
+        - Edge dropping and addition
+        - Additional reconstruction objectives
+        - Structure preservation
+        """
+
         self.source_data = source_data
         self.target_data = target_data
 
@@ -253,9 +338,53 @@ class DGDA(BaseGDA):
                    train=True)
     
     def process_graph(self, data):
+        """
+        Process the input graph data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data to be processed.
+
+        Notes
+        -----
+        Placeholder method for potential preprocessing steps:
+
+        - Graph structure normalization
+        - Feature preprocessing
+        - Edge weight computation
+        - Adjacency matrix preparation
+
+        Currently not implemented as preprocessing is handled
+        in the fit method through DeepWalk pretraining and
+        edge manipulation procedures.
+        """
         pass
 
     def predict(self, data):
+        """
+        Make predictions on target domain data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - logits : torch.Tensor
+                Model predictions.
+            - labels : torch.Tensor
+                True labels.
+
+        Notes
+        -----
+        Uses stored graph structure and features
+        for consistent prediction.
+        """
+
         self.dgda.eval()
 
         with torch.no_grad():
@@ -265,6 +394,40 @@ class DGDA(BaseGDA):
         return logits, data.y
     
     def DGDA_loss(self, res, labels, adj, domain, manipulate=False, dadj=None):
+        """
+        Compute the combined loss for DGDA training.
+
+        Parameters
+        ----------
+        res : dict
+            Model outputs including reconstructions and latent variables.
+        labels : torch.Tensor
+            Ground truth labels.
+        adj : torch.Tensor
+            Adjacency matrix.
+        domain : int
+            Domain indicator (0 for source, 1 for target).
+        manipulate : bool, optional
+            Whether using manipulated graphs. Default: ``False``.
+        dadj : torch.Tensor, optional
+            Difference adjacency matrix for manipulation.
+
+        Returns
+        -------
+        torch.Tensor
+            Combined loss value.
+
+        Notes
+        -----
+        Combines multiple loss terms:
+
+        - Graph reconstruction loss
+        - KL divergence for three latent spaces
+        - Classification loss (source only)
+        - Domain adversarial loss
+        - Maximum entropy regularization
+        """
+
         # Reconstruction loss
         recon_loss = self.recons_w * self.recons_loss(res['a_recons'], adj)
         
@@ -294,6 +457,28 @@ class DGDA(BaseGDA):
         return loss
     
     def recons_loss(self, recons, adjs):
+        """
+        Compute weighted binary cross-entropy loss for graph reconstruction.
+
+        Parameters
+        ----------
+        recons : torch.Tensor
+            Reconstructed adjacency matrix.
+        adjs : torch.Tensor
+            Original adjacency matrix.
+
+        Returns
+        -------
+        torch.Tensor
+            Weighted reconstruction loss.
+
+        Notes
+        -----
+        - Handles class imbalance with positive edge weighting
+        - Normalizes based on graph size
+        - Ensures non-negative loss values
+        """
+
         batch_size, n_node = recons.shape
         total_node = batch_size * n_node
         n_edges = adjs.sum()
@@ -313,18 +498,80 @@ class DGDA(BaseGDA):
         return rl
     
     def kl_loss(self, mu, lv):
+        """
+        Compute KL divergence loss for variational inference.
+
+        Parameters
+        ----------
+        mu : torch.Tensor
+            Mean of the latent distribution.
+        lv : torch.Tensor
+            Log variance of the latent distribution.
+
+        Returns
+        -------
+        torch.Tensor
+            KL divergence loss normalized by number of nodes.
+        """
+
         n_node = mu.shape[1]
         kld = -0.5 / n_node * torch.mean(torch.sum(1 + 2 * lv - mu.pow(2) - lv.exp().pow(2), dim=-1))
         
         return kld
     
     def max_entropy(self, x):
+        """
+        Compute maximum entropy regularization.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input logits.
+
+        Returns
+        -------
+        torch.Tensor
+            Entropy loss term.
+
+        Notes
+        -----
+        Encourages uniform distribution in latent spaces.
+        """
+
         # Why 0.693148?
         ent = 0.693148 + torch.mean(torch.sigmoid(x) * F.logsigmoid(x))
         
         return ent
     
     def drop_edges(self, adj, drop_rate=0.0, add_rate=0.0):
+        """
+        Perform edge manipulation for data augmentation.
+
+        Parameters
+        ----------
+        adj : torch.Tensor
+            Original adjacency matrix.
+        drop_rate : float, optional
+            Probability of edge dropping. Default: ``0.0``.
+        add_rate : float, optional
+            Rate of edge addition. Default: ``0.0``.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - nadj : torch.Tensor
+                New adjacency matrix after manipulation.
+            - dadj : torch.Tensor
+                Difference matrix showing changes.
+
+        Notes
+        -----
+        - Maintains graph symmetry
+        - Preserves self-loops
+        - Controls sparsity level
+        """
+
         bs, N = adj.shape
         n_edges = adj.sum()
         sparsity = (n_edges + bs * N) / (bs * N)

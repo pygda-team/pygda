@@ -162,6 +162,27 @@ class PairAlign(BaseGDA):
         self.lw_start=lw_start
 
     def init_model(self, **kwargs):
+        """
+        Initialize the PairAlign base model.
+
+        Parameters
+        ----------
+        **kwargs
+            Additional parameters for model initialization.
+
+        Returns
+        -------
+        ReweightGNN
+            Initialized model with specified architecture parameters.
+
+        Notes
+        -----
+        Configures model with:
+
+        - GNN backbone with specified dimensions
+        - Classification layers
+        - Reweighting mechanisms for edges and labels
+        """
 
         return ReweightGNN(
             input_dim=self.in_dim,
@@ -179,6 +200,36 @@ class PairAlign(BaseGDA):
             ).to(self.device)
 
     def forward_model(self, source_data, target_data, epoch):
+        """
+        Forward pass of the PairAlign model.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+        epoch : int
+            Current training epoch.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - loss : torch.Tensor
+                Combined loss from classification.
+            - pred_src : torch.Tensor
+                Source domain predictions.
+            - pred_tgt : torch.Tensor
+                Target domain predictions.
+
+        Notes
+        -----
+        - Updates edge weights periodically if edge_rw is enabled
+        - Updates label weights periodically if label_rw is enabled
+        - Handles both weighted and unweighted classification losses
+        """
+
         GNN_embed_src, pred_src = self.gnn.forward(source_data, source_data.x)
         GNN_embed_tgt, pred_tgt = self.gnn.forward(target_data, target_data.x)
 
@@ -221,6 +272,34 @@ class PairAlign(BaseGDA):
         return loss, pred_src, pred_tgt
 
     def fit(self, source_data, target_data):
+        """
+        Train the PairAlign model on source and target domain data.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Notes
+        -----
+        Training process includes:
+        
+        Initial Setup
+        
+        - Edge weight initialization
+        - Data loader configuration
+        - True weight calculations (edge, label, beta)
+
+        Training Loop
+        
+        - Forward pass with reweighting
+        - Loss computation and optimization
+        - Periodic weight updates
+        - Performance monitoring
+        """
+
         if source_data.edge_weight is None:
             source_data.edge_weight = torch.ones(source_data.edge_index.shape[1]).to(self.device)
         if target_data.edge_weight is None:
@@ -285,9 +364,47 @@ class PairAlign(BaseGDA):
                    train=True)
 
     def process_graph(self, data):
-        pass
+        """
+        Process input graph data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph to be processed.
+
+        Notes
+        -----
+        Placeholder method as preprocessing is handled by:
+
+        - Edge weight calculation
+        - Label weight computation
+        - Beta value estimation
+        """
 
     def predict(self, data):
+        """
+        Make predictions on input data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - logits : torch.Tensor
+                Model predictions.
+            - labels : torch.Tensor
+                True labels.
+
+        Notes
+        -----
+        - Evaluates model in inference mode
+        - Returns both predictions and ground truth
+        """
+
         self.gnn.eval()
 
         with torch.no_grad():
@@ -296,12 +413,50 @@ class PairAlign(BaseGDA):
         return logits, data.y
     
     def CE_loss(self, pred, label):
+        """
+        Standard cross-entropy loss computation.
+
+        Parameters
+        ----------
+        pred : torch.Tensor
+            Model predictions.
+        label : torch.Tensor
+            Ground truth labels.
+
+        Returns
+        -------
+        torch.Tensor
+            Computed cross-entropy loss.
+        """
+
         label = label.type(torch.int64)
         loss = nn.CrossEntropyLoss()
         
         return loss(pred, label)
 
     def CE_srcweight_loss(self, pred, label):
+        """
+        Weighted cross-entropy loss for source domain.
+
+        Parameters
+        ----------
+        pred : torch.Tensor
+            Model predictions.
+        label : torch.Tensor
+            Ground truth labels.
+
+        Returns
+        -------
+        torch.Tensor
+            Weighted cross-entropy loss.
+
+        Notes
+        -----
+        - Computes inverse frequency weights for classes
+        - Applies class-specific weights to loss
+        - Handles class imbalance in source domain
+        """
+
         label = label.type(torch.int64)
         y_onehot = F.one_hot(label).float().to(self.device)
         p_y = torch.sum(y_onehot, 0) / len(y_onehot)
@@ -311,6 +466,33 @@ class PairAlign(BaseGDA):
         return torch.mean(loss(pred, label))
 
     def CE_loss_weight(self, pred, label, label_weight, weight_src):
+        """
+        Weighted cross-entropy loss with label-specific weights.
+
+        Parameters
+        ----------
+        pred : torch.Tensor
+            Model predictions.
+        label : torch.Tensor
+            Ground truth labels.
+        label_weight : torch.Tensor
+            Weights for each label.
+        weight_src : bool
+            Whether to use source domain class weights.
+
+        Returns
+        -------
+        torch.Tensor
+            Weighted loss value.
+
+        Notes
+        -----
+        - Combines class weights and label weights
+        - Supports optional source domain weighting
+        - Normalizes by number of classes
+        - Handles both balanced and imbalanced scenarios
+        """
+
         class_num = len(label.unique())
         label = label.type(torch.int64)
         y_onehot = F.one_hot(label).float().to(self.device)
@@ -325,6 +507,24 @@ class PairAlign(BaseGDA):
         return torch.mean(loss(pred, label).view(-1, 1) * weight)/ class_num
     
     def calc_true_lw(self, src_graph, tgt_graph):
+        """
+        Calculate true label weights between domains.
+
+        Parameters
+        ----------
+        src_graph : torch_geometric.data.Data
+            Source domain graph.
+        tgt_graph : torch_geometric.data.Data
+            Target domain graph.
+
+        Notes
+        -----
+        - Computes class distribution in both domains
+        - Calculates ratio of target to source distributions
+        - Stores true weights and initializes current weights
+        - Uses one-hot encoding for label processing
+        """
+
         print('calc true lw...')
         label_onehot_src = F.one_hot(src_graph.y)
         label_onehot_tgt = F.one_hot(tgt_graph.y)
@@ -340,6 +540,26 @@ class PairAlign(BaseGDA):
         src_graph.lw = np.ones_like(src_graph.true_lw)
             
     def calc_true_beta(self, src_graph, tgt_graph):
+        """
+        Calculate true beta values for edge distribution alignment.
+
+        Parameters
+        ----------
+        src_graph : torch_geometric.data.Data
+            Source domain graph.
+        tgt_graph : torch_geometric.data.Data
+            Target domain graph.
+
+        Notes
+        -----
+        - Creates edge class matrices for both domains
+        - Computes edge class probabilities
+        - Calculates ratio between target and source probabilities
+        - Handles numerical edge cases (inf, nan)
+        - Stores results in source graph for reference
+        - Maintains class-pair relationships in edge classification
+        """
+
         print('calc true beta...')
         num_classes = self.num_classes
         src_num_edges = src_graph.edge_index.shape[1]
@@ -373,6 +593,23 @@ class PairAlign(BaseGDA):
         src_graph.true_beta = beta
     
     def calc_true_ew(self, src_graph, tgt_graph):
+        """
+        Calculate true edge weights between source and target domains.
+
+        Parameters
+        ----------
+        src_graph : torch_geometric.data.Data
+            Source domain graph.
+        tgt_graph : torch_geometric.data.Data
+            Target domain graph.
+
+        Notes
+        -----
+        - Computes edge probability ratios
+        - Handles numerical stability with gamma regularization
+        - Stores true edge weights for reference
+        """
+
         print('calc true ew...')
         src_edge_prob, tgt_edge_prob = self.cal_edge_prob_sep(src_graph, tgt_graph)
 
@@ -382,6 +619,35 @@ class PairAlign(BaseGDA):
         src_graph.ew = np.ones_like(src_graph.true_ew)
     
     def cal_edge_prob_sep(self, src_graph, tgt_graph):
+        """
+        Calculate separate edge probabilities for source and target domains.
+
+        Parameters
+        ----------
+        src_graph : torch_geometric.data.Data
+            Source domain graph.
+        tgt_graph : torch_geometric.data.Data
+            Target domain graph.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - src_edge_prob : torch.Tensor
+                Edge probabilities in source domain.
+            - tgt_edge_prob : torch.Tensor
+                Edge probabilities in target domain.
+
+        Notes
+        -----
+        Implementation steps:
+        
+        1. Converts sparse adjacency to dense format
+        2. Creates one-hot label encodings using sparse matrices
+        3. Computes class-conditional edge probabilities
+        4. Normalizes by node counts per class
+        """
+
         src_adj = to_dense_adj(src_graph.edge_index, max_num_nodes=src_graph.x.shape[0]).squeeze().T.detach().cpu().numpy()
         tgt_adj = to_dense_adj(tgt_graph.edge_index, max_num_nodes=tgt_graph.x.shape[0]).squeeze().T.detach().cpu().numpy()
         num_nodes_src = src_graph.x.shape[0]
@@ -410,6 +676,31 @@ class PairAlign(BaseGDA):
         return src_edge_prob, tgt_edge_prob
     
     def update_ew(self, src_data, tgt_data, pred_src, pred_tgt):
+        """
+        Update edge weights based on domain alignment.
+
+        Parameters
+        ----------
+        src_data : torch_geometric.data.Data
+            Source domain graph data.
+        tgt_data : torch_geometric.data.Data
+            Target domain graph data.
+        pred_src : torch.Tensor
+            Source domain predictions.
+        pred_tgt : torch.Tensor
+            Target domain predictions.
+
+        Notes
+        -----
+        - Supports multiple edge weight calculation methods:
+            
+            * pseudobeta: Dynamic weight calculation
+            * truth: Uses true edge weights
+            * other: Ratio-based weight calculation
+        
+        - Updates edge weights in source graph
+        """
+
         if self.ew_type == "pseudobeta":
             ew_diff, beta_diff = self.calc_edge_rw_pseudo(src_data, tgt_data, pred_src, pred_tgt)
         else:
@@ -430,6 +721,52 @@ class PairAlign(BaseGDA):
         return 
 
     def calc_edge_rw_pseudo(self, src_graph, tgt_graph, yhat_src, yhat_tgt):
+        """
+        Calculate edge reweighting using pseudo-labels.
+
+        Parameters
+        ----------
+        src_graph : torch_geometric.data.Data
+            Source domain graph.
+        tgt_graph : torch_geometric.data.Data
+            Target domain graph.
+        yhat_src : torch.Tensor
+            Source domain predictions.
+        yhat_tgt : torch.Tensor
+            Target domain predictions.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - diff : float
+                L1 difference between computed and true edge weights.
+            - beta_diff : float
+                L1 difference between computed and true beta values.
+
+        Notes
+        -----
+        Implementation steps:
+
+        Edge Feature Computation
+        
+        - Constructs sparse edge features for both domains
+        - Uses einsum for efficient tensor operations
+        - Handles class-conditional edge probabilities
+
+        Distribution Alignment
+        
+        - Computes covariance and mean statistics
+        - Performs least squares optimization
+        - Applies ratio-based weight calculation
+
+        Weight Processing
+        
+        - Handles numerical edge cases (inf, nan)
+        - Updates graph edge weights
+        - Computes alignment metrics
+        """
+
         true_ew = src_graph.true_ew
         true_beta = src_graph.true_beta
         num_classes = self.num_classes
@@ -476,6 +813,37 @@ class PairAlign(BaseGDA):
         return diff, beta_diff
     
     def LS_optimization(self, cov, muhat_tgt, mu_src, lambda_reg):
+        """
+        Perform least squares optimization for weight computation.
+
+        Parameters
+        ----------
+        cov : torch.Tensor
+            Covariance matrix between source and target.
+        muhat_tgt : torch.Tensor
+            Target domain mean features.
+        mu_src : torch.Tensor
+            Source domain mean features.
+        lambda_reg : float
+            Regularization parameter.
+
+        Returns
+        -------
+        numpy.ndarray
+            Optimal transformation weights.
+
+        Notes
+        -----
+        - Solves constrained optimization problem:
+            
+            * Minimizes L2 distance between transformed source and target
+            * Includes regularization towards uniform weights
+            * Maintains probability constraints
+        
+        - Prints covariance matrix rank for debugging
+        - Uses CVXPY with SCS solver
+        """
+
         mu_src = mu_src.cpu().detach().numpy().reshape(-1).astype(np.double)
         muhat_tgt = muhat_tgt.cpu().detach().numpy().reshape(-1).astype(np.double)
         cov = cov.cpu().detach().numpy().astype(np.double)
@@ -495,6 +863,35 @@ class PairAlign(BaseGDA):
         return x_value
     
     def calc_ratio_weight(self, src_graph, kmm_weight, gamma_reg):
+        """
+        Calculate edge ratio weights using kernel mean matching.
+
+        Parameters
+        ----------
+        src_graph : torch_geometric.data.Data
+            Source domain graph data.
+        kmm_weight : numpy.ndarray
+            Kernel mean matching weights.
+        gamma_reg : float
+            Regularization parameter for numerical stability.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - gamma : numpy.ndarray
+                Edge ratio weights.
+            - p_ei_tgt_reg : numpy.ndarray
+                Regularized target edge probabilities.
+
+        Notes
+        -----
+        - Computes class-conditional edge probabilities
+        - Applies regularization for stability
+        - Handles edge probability ratios between domains
+        - Maintains probability constraints
+        """
+
         src_num_edges = src_graph.edge_index.shape[1]
         src_num_nodes = src_graph.x.shape[0]
         num_classes = self.num_classes
@@ -511,6 +908,32 @@ class PairAlign(BaseGDA):
         return gamma, p_ei_tgt_reg
     
     def update_lw(self, src_data, tgt_data, pred_src, pred_tgt):
+        """
+        Update label weights for domain alignment.
+
+        Parameters
+        ----------
+        src_data : torch_geometric.data.Data
+            Source domain graph data.
+        tgt_data : torch_geometric.data.Data
+            Target domain graph data.
+        pred_src : torch.Tensor
+            Source domain predictions.
+        pred_tgt : torch.Tensor
+            Target domain predictions.
+
+        Returns
+        -------
+        numpy.ndarray
+            Updated label weights.
+
+        Notes
+        -----
+        - Computes label distribution alignment
+        - Uses least squares optimization with regularization
+        - Maintains probability constraints
+        """
+
         yhat_tgt = torch.mean(F.softmax(pred_tgt,dim=1), dim=0)
         y_src_onehot = F.one_hot(src_data.y).float().to(self.device)
         y_src = torch.mean(y_src_onehot, dim=0)
@@ -522,6 +945,36 @@ class PairAlign(BaseGDA):
         return label_weight
     
     def calc_label_rw(self, y_src, y_hat_tgt, cov, lambda_reg):
+        """
+        Calculate label reweighting coefficients using constrained optimization.
+
+        Parameters
+        ----------
+        y_src : torch.Tensor
+            Source domain label distribution.
+        y_hat_tgt : torch.Tensor
+            Target domain predicted label distribution.
+        cov : torch.Tensor
+            Covariance matrix between predictions and true labels.
+        lambda_reg : float
+            Regularization parameter for weight deviation.
+
+        Returns
+        -------
+        numpy.ndarray
+            Optimal label weights that align source and target distributions.
+
+        Notes
+        -----
+        - Solves a quadratic program with:
+            
+            * L2 loss between transformed and target distributions
+            * L2 regularization towards uniform weights
+            * Sum-to-one and non-negativity constraints
+        
+        - Uses CVXPY with SCS solver for optimization
+        """
+
         y_src = y_src.cpu().detach().numpy().astype(np.double)
         y_hat_tgt = y_hat_tgt.cpu().detach().numpy().astype(np.double)
         cov = cov.cpu().detach().numpy().astype(np.double)

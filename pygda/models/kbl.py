@@ -100,6 +100,28 @@ class KBL(BaseGDA):
         self.k_within = k_within
 
     def init_model(self, **kwargs):
+        """
+        Initialize the Knowledge Bridge Learning (KBL) model.
+
+        Parameters
+        ----------
+        **kwargs
+            Additional parameters for the KBLBase model.
+
+        Returns
+        -------
+        KBLBase
+            Initialized model on the specified device.
+
+        Notes
+        -----
+        Configures the base model with specific parameters:
+
+        - Bridge construction parameters (k_cross, k_within)
+        - Model architecture (hidden dimensions, layers)
+        - Training settings (learning rate, weight decay)
+        - Normalization options
+        """
 
         return KBLBase(
             data_src=self.source_data,
@@ -120,9 +142,63 @@ class KBL(BaseGDA):
             ).to(self.device)
 
     def forward_model(self, source_data, target_data):
+        """
+        Forward pass of the model.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Notes
+        -----
+        Placeholder method as the main forward logic is handled
+        in the fit method through bridged graph processing.
+        """
         pass
 
     def fit(self, source_data, target_data):
+        """
+        Train the KBL model on source and target domain data.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Notes
+        -----
+        Training process includes:
+
+        Data preparation:
+
+        - Stores source and target data for bridge construction
+        - Creates data loaders (full batch only)
+        
+        Bridge construction:
+        
+        - Builds knowledge bridge between domains
+        - Creates unified graph with cross-domain connections
+        - Converts to undirected graph structure
+        
+        Training loop:
+        
+        - Processes merged graph with knowledge bridges
+        - Updates model parameters using central nodes
+        - Tracks and logs:
+            
+            - Classification loss
+            - Training accuracy
+            - Computation time
+
+        Important
+        --------
+        Only supports full-batch training (batch_size must be 0)
+        """
         self.source_data = source_data
         self.target_data = target_data
 
@@ -179,9 +255,43 @@ class KBL(BaseGDA):
                    train=True)
     
     def process_graph(self, data):
+        """
+        Process the input graph data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data to be processed.
+
+        Notes
+        -----
+        Placeholder method for graph preprocessing.
+        """
         pass
 
     def predict(self, data):
+        """
+        Make predictions on given data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - logits : torch.Tensor
+                Model predictions for the input data.
+            - labels : torch.Tensor
+                True labels.
+
+        Notes
+        -----
+        Uses the stored bridged graph for inference,
+        extracting predictions for the target nodes.
+        """
         self.kbl.gnn.eval()
 
         with torch.no_grad():

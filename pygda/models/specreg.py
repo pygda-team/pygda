@@ -121,6 +121,19 @@ class SpecReg(BaseGDA):
         self.gamma_mfr=gamma_mfr
 
     def init_model(self, **kwargs):
+        """
+        Initialize the SpecReg model.
+
+        Parameters
+        ----------
+        **kwargs
+            Other parameters for the UDAGCNBase model.
+
+        Returns
+        -------
+        UDAGCNBase
+            Initialized UDAGCN model on the specified device.
+        """
 
         return UDAGCNBase(
             in_dim=self.in_dim,
@@ -135,6 +148,41 @@ class SpecReg(BaseGDA):
         ).to(self.device)
 
     def forward_model(self, source_data, target_data, alpha, epoch):
+        """
+        Forward pass of the model.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+        alpha : float
+            Gradient reversal scaling parameter.
+        epoch : int
+            Current training epoch.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - loss : torch.Tensor
+                Combined loss from multiple components.
+            - source_logits : torch.Tensor
+                Model predictions for source domain.
+            - target_logits : torch.Tensor
+                Model predictions for target domain.
+
+        Notes
+        -----
+        Computes multiple loss terms:
+        
+        - Classification loss on source domain
+        - Wasserstein distance with gradient penalty
+        - Spectral smoothness regularization (if reg_mode)
+        - Maximum Frequency Response regularization (if reg_mode)
+        - Entropy minimization on target domain
+        """
         encoded_source = self.udagcn.encode(source_data, "source")
         encoded_target = self.udagcn.encode(target_data, "target")
         source_logits = self.udagcn.cls_model(encoded_source)
@@ -178,6 +226,27 @@ class SpecReg(BaseGDA):
         return loss, source_logits, target_logits
 
     def fit(self, source_data, target_data):
+        """
+        Train the SpecReg model.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Notes
+        -----
+        Training process includes:
+
+        - Setting up data loaders
+        - Initializing model, critic, and optimizers
+        - Alternating training between:
+            - Critic optimization (Wasserstein distance)
+            - Model optimization with spectral regularization
+        - Computing and logging training metrics
+        """
         self.num_source_nodes, _ = source_data.x.shape
         self.num_target_nodes, _ = target_data.x.shape
 
@@ -257,9 +326,45 @@ class SpecReg(BaseGDA):
                    train=True)
     
     def process_graph(self, data):
+        """
+        Process the input graph data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data to be processed.
+
+        Notes
+        -----
+        Placeholder method for graph preprocessing.
+        """
         pass
 
     def predict(self, data, source=False):
+        """
+        Make predictions on given data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+        source : bool, optional
+            Whether the input is from source domain.
+            Default: ``False``.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - logits : torch.Tensor
+                Model predictions.
+            - labels : torch.Tensor
+                True labels.
+
+        Notes
+        -----
+        Uses appropriate encoder based on domain (source/target).
+        """
         for model in self.udagcn.models:
             model.eval()
 
@@ -273,6 +378,29 @@ class SpecReg(BaseGDA):
         return logits, data.y
     
     def calculate_gradient_penalty(self, x_src, x_tgt):
+        """
+        Calculate gradient penalty for Wasserstein GAN training.
+
+        Parameters
+        ----------
+        x_src : torch.Tensor
+            Source domain features.
+        x_tgt : torch.Tensor
+            Target domain features.
+
+        Returns
+        -------
+        torch.Tensor
+            Computed gradient penalty value.
+
+        Notes
+        -----
+        Implements Wasserstein GAN gradient penalty by:
+
+        - Interpolating between source and target features
+        - Computing gradients of critic output
+        - Penalizing gradients that deviate from norm 1
+        """
         x = torch.cat([x_src, x_tgt], dim=0).requires_grad_(True)
         x_out = self.critic(x)
         grad_out = torch.ones(x_out.shape, requires_grad=False).to(x_out.device)

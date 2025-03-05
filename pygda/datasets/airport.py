@@ -17,6 +17,33 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 
 class AirportDataset(InMemoryDataset):
+    """
+    Airport network dataset loader for graph-based analysis.
+
+    Parameters
+    ----------
+    root : str
+        Root directory where the dataset should be saved
+    name : str
+        Name of the airport dataset
+    transform : callable, optional
+        Function/transform that takes in a Data object and returns a transformed
+        version. Default: None
+    pre_transform : callable, optional
+        Function/transform to be applied to the data object before saving.
+        Default: None
+    pre_filter : callable, optional
+        Function that takes in a Data object and returns a boolean value,
+        indicating whether the data object should be included. Default: None
+
+    Notes
+    -----
+    - Nodes represent airports
+    - Edges represent routes between airports
+    - Labels indicate airport categories
+    - Includes train/val/test splits (80/10/10)
+    """
+
     def __init__(self,
                  root,
                  name,
@@ -31,16 +58,80 @@ class AirportDataset(InMemoryDataset):
     
     @property
     def raw_file_names(self):
+        """
+        Names of required raw files.
+
+        Returns
+        -------
+        list[str]
+            List of required raw file names
+
+        Notes
+        -----
+        Required files:
+
+        - edgelist.txt: Contains edge connectivity
+        - labels.txt: Contains node labels
+        """
         return ["edgelist.txt", "labels.txt"]
 
     @property
     def processed_file_names(self):
+        """
+        Names of processed data files.
+
+        Returns
+        -------
+        list[str]
+            List of processed file names
+
+        Notes
+        -----
+        Processed files:
+
+        - data.pt: Contains processed PyTorch Geometric data object
+        """
         return ['data.pt']
 
     def download(self):
+        """
+        Download raw data files.
+
+        Notes
+        -----
+        Empty implementation - data should be manually placed in raw directory
+        """
         pass
 
     def process(self):
+        """
+        Process raw data into PyTorch Geometric Data format.
+
+        Notes
+        -----
+        - Load edge list from text file
+        - Load node labels from text file
+        - Create Data object with:
+            
+            * Edge indices
+            * Node labels
+            * Train/val/test masks
+        
+        - Apply pre-transform if specified
+        - Save processed data
+
+        Data Split:
+
+        - Training: 80%
+        - Validation: 10%
+        - Testing: 10%
+
+        Features:
+        
+        - Random split generation
+        - Optional pre-transform support
+        - Efficient data storage
+        """
         edge_path = osp.join(self.raw_dir, '{}_edgelist.txt'.format(self.name))
         edge_index = read_txt_array(edge_path, sep=',', dtype=torch.long).t()
 

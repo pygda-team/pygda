@@ -114,6 +114,28 @@ class SAGDA(BaseGDA):
         self.mode=mode
 
     def init_model(self, **kwargs):
+        """
+        Initialize the SAGDA base model.
+
+        Parameters
+        ----------
+        **kwargs
+            Additional parameters for model initialization.
+
+        Returns
+        -------
+        SAGDABase
+            Initialized model with specified architecture parameters.
+
+        Notes
+        -----
+        Configures model with:
+
+        - Spectral augmentation parameters (alpha, beta)
+        - PPMI matrix option
+        - Adversarial module settings
+        - Base architecture parameters (layers, dropout)
+        """
 
         return SAGDABase(
             in_dim=self.in_dim,
@@ -130,9 +152,62 @@ class SAGDA(BaseGDA):
         ).to(self.device)
 
     def forward_model(self, source_data, target_data):
+        """
+        Forward pass placeholder.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Notes
+        -----
+        Main forward logic is implemented in fit method
+        to handle spectral augmentation and domain adaptation.
+        """
         pass
 
     def fit(self, source_data, target_data):
+        """
+        Train the SAGDA model on source and target domain data.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Notes
+        -----
+        Training process consists of multiple components:
+
+        Data Handling
+
+        - Supports both node and graph-level tasks
+        - Configures appropriate data loaders
+        - Handles batch processing
+
+        Model Training
+
+        - Initializes spectral augmentation components
+        - Implements adversarial domain adaptation
+        - Combines multiple loss terms:
+        
+            * Classification loss on source domain
+            * Domain adversarial loss with gradient reversal
+            * Target entropy minimization
+            * Spectral augmentation losses
+
+        Implementation Details
+
+        - Dynamic adaptation parameter scaling
+        - Graph pooling for graph-level tasks
+        - Comprehensive progress monitoring
+        - Flexible batch processing options
+        """
         if self.mode == 'node':
             self.num_source_nodes, _ = source_data.x.shape
             self.num_target_nodes, _ = target_data.x.shape
@@ -245,9 +320,53 @@ class SAGDA(BaseGDA):
                    train=True)
     
     def process_graph(self, data):
+        """
+        Process the input graph data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data to be processed.
+
+        Notes
+        -----
+        Placeholder method for potential preprocessing steps:
+
+        - Spectral feature computation
+        - Graph structure augmentation
+        - Feature normalization
+        """
         pass
 
     def predict(self, data, source=False):
+        """
+        Make predictions on input data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+        source : bool, optional
+            Whether predicting on source domain. Default: ``False``.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - logits : torch.Tensor
+                Model predictions.
+            - labels : torch.Tensor
+                True labels.
+
+        Notes
+        -----
+        Prediction process:
+        
+        - Uses appropriate encoder based on domain
+        - Applies graph pooling for graph-level tasks
+        - Handles batch processing
+        - Concatenates results for full predictions
+        """
         for model in self.sagda.models:
             model.eval()
         

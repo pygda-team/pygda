@@ -99,6 +99,36 @@ class GNNBase(nn.Module):
 
             
     def forward(self, x, edge_index, edge_weight=None, batch=None):
+        """
+        Forward pass of the GNN model.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Node feature matrix, shape (num_nodes, in_dim).
+        edge_index : torch.Tensor
+            Edge indices, shape (2, num_edges).
+        edge_weight : torch.Tensor, optional
+            Edge weights. Default: None.
+        batch : torch.Tensor, optional
+            Batch vector for graph-level tasks. Default: None.
+
+        Returns
+        -------
+        torch.Tensor
+            Log-softmax probabilities:
+            - For node mode: shape (num_nodes, num_classes)
+            - For graph mode: shape (num_graphs, num_classes)
+
+        Notes
+        -----
+        Process:
+        
+        1. Feature transformation through GNN layers
+        2. Graph pooling (if graph-level task)
+        3. Classification
+        4. Log-softmax normalization
+        """
         x = self.feat_bottleneck(x, edge_index, edge_weight)
         if self.mode == 'graph':
             x = global_mean_pool(x, batch)
@@ -109,6 +139,31 @@ class GNNBase(nn.Module):
         return x
     
     def feat_bottleneck(self, x, edge_index, edge_weight=None):
+        """
+        Feature extraction through GNN layers.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Node feature matrix.
+        edge_index : torch.Tensor
+            Edge indices.
+        edge_weight : torch.Tensor, optional
+            Edge weights. Default: None.
+
+        Returns
+        -------
+        torch.Tensor
+            Transformed node features.
+
+        Notes
+        -----
+        Process:
+
+        1. Sequential GNN layer application
+        2. Activation (except last layer)
+        3. Dropout regularization
+        """
         for i, conv in enumerate(self.convs):
             x = conv(x, edge_index, edge_weight)
             if i < len(self.convs) - 1:
@@ -118,6 +173,30 @@ class GNNBase(nn.Module):
         return x
     
     def feat_classifier(self, x, edge_index, edge_weight=None):
+        """
+        Final classification layer.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Node features from bottleneck.
+        edge_index : torch.Tensor
+            Edge indices.
+        edge_weight : torch.Tensor, optional
+            Edge weights. Default: None.
+
+        Returns
+        -------
+        torch.Tensor
+            Classification logits.
+
+        Notes
+        -----
+        Two modes:
+
+        - Node mode: Uses GNN classifier
+        - Graph mode: Uses linear classifier
+        """
         if self.mode == 'node':
             x = self.cls(x, edge_index, edge_weight)
         else:

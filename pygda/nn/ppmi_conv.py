@@ -8,6 +8,37 @@ from .cached_gcn_conv import CachedGCNConv
 
 
 class PPMIConv(CachedGCNConv):
+    """
+    Graph convolution layer using Pointwise Mutual Information (PPMI) for edge weighting.
+
+    Parameters
+    ----------
+    in_channels : int
+        Number of input channels
+    out_channels : int
+        Number of output channels
+    weight : torch.Tensor, optional
+        Pre-defined weight matrix. Default: None
+    bias : torch.Tensor, optional
+        Pre-defined bias vector. Default: None
+    improved : bool, optional
+        If True, uses A + 2I for self-loops. Default: False
+    use_bias : bool, optional
+        Whether to include bias. Default: True
+    path_len : int, optional
+        Maximum length of random walks. Default: 5
+    **kwargs : optional
+        Additional arguments for CachedGCNConv
+
+    Notes
+    -----
+    Implements PPMI-based graph convolution by:
+
+    - Generating random walks to estimate node co-occurrences
+    - Computing PPMI scores for edge weights
+    - Applying normalized convolution with PPMI weights
+    """
+
     def __init__(
         self,
         in_channels,
@@ -23,6 +54,46 @@ class PPMIConv(CachedGCNConv):
         self.path_len = path_len
 
     def norm(self, edge_index, num_nodes, edge_weight=None, improved=False, dtype=None):
+        """
+        Compute PPMI-based normalized adjacency matrix.
+
+        Parameters
+        ----------
+        edge_index : torch.Tensor
+            Edge indices (2 x E)
+        num_nodes : int
+            Number of nodes in the graph
+        edge_weight : torch.Tensor, optional
+            Initial edge weights. Default: None
+        improved : bool, optional
+            If True, uses A + 2I for self-loops. Default: False
+        dtype : torch.dtype, optional
+            Data type for computations. Default: None
+
+        Returns
+        -------
+        tuple[torch.Tensor, torch.Tensor]
+            Contains:
+
+            - Modified edge indices
+            - PPMI-based normalized edge weights
+
+        Notes
+        -----
+        - Build adjacency dictionary
+        - Generate random walks
+        - Compute normalized co-occurrence probabilities
+        - Calculate PPMI scores
+        - Apply symmetric normalization
+        
+        The PPMI computation follows:
+        PPMI(a,b) = max(log(P(a,b)/(P(a)P(b)) * N/path_len), 0)
+        where:
+        
+        - P(a,b) is co-occurrence probability
+        - P(a), P(b) are marginal probabilities
+        - N is number of nodes
+        """
 
         adj_dict = {}
 

@@ -30,6 +30,14 @@ logits, labels = model.predict(target_data)
 * **Seamlessly integrated data processing with PyG, ensuring full compatibility with PyG data structures.**
 
 ## What's New?
+**[03/2025]**. We now support multi-source-free setting of graph domain adaptation.
+
+- To perform a multi-source-free domain adaptation task, simply modify one parameter in the model as follows:
+```
+model = GraphATA(in_dim=num_features, hid_dim=args.nhid, num_classes=num_classes, num_src_domains=n, device=args.device)
+model.fit([source_data, source_data2, ...], target_data)
+```
+
 **[12/2024]**. We now support source-free setting of graph domain adaptation.
 
 - 3 recent models including `GTrans`, `SOGA` and `GraphCTA` are supported.
@@ -134,6 +142,7 @@ In addition to the easy application of existing GDA models, PyGDA makes it simpl
 | 18     | [Empowering Graph Representation Learning with Test-Time Graph Transformation](https://arxiv.org/abs/2210.03561)      |   GTrans   |   ICLR 2023    |
 | 19     | [Source Free Unsupervised Graph Domain Adaptation](https://arxiv.org/abs/2112.00955)      |   SOGA   |   WSDM 2024    |
 | 20     | [Collaborate to Adapt: Source-Free Graph Domain Adaptation via Bi-directional Adaptation](https://dl.acm.org/doi/10.1145/3589334.3645507)      |   GraphCTA   |   WWW 2024    |
+| 21     | [Aggregate to Adapt: Node-Centric Aggregation for Multi-Source-Free Graph Domain Adaptation](https://arxiv.org/pdf/2502.03033)      |   GraphCTA   |   WWW 2025    |
 
 
 ## Cite

@@ -8,34 +8,28 @@ from torch_geometric.nn.inits import glorot, zeros
 
 
 class CachedGCNConv(MessagePassing):
-    r"""The graph convolutional operator from the `"Semi-supervised
-    Classification with Graph Convolutional Networks"
-    <https://arxiv.org/abs/1609.02907>`_ paper
+    """
 
-    .. math::
-        \mathbf{X}^{\prime} = \mathbf{\hat{D}}^{-1/2} \mathbf{\hat{A}}
-        \mathbf{\hat{D}}^{-1/2} \mathbf{X} \mathbf{\Theta},
+    Implementation of the GCN layer from "Semi-supervised Classification with Graph 
+    Convolutional Networks" (Kipf & Welling, 2017) with caching capabilities.
 
-    where :math:`\mathbf{\hat{A}} = \mathbf{A} + \mathbf{I}` denotes the
-    adjacency matrix with inserted self-loops and
-    :math:`\hat{D}_{ii} = \sum_{j=0} \hat{A}_{ij}` its diagonal degree matrix.
+    Parameters
+    ----------
+    in_channels : int
+        Dimension of input features.
+    out_channels : int
+        Dimension of output features.
+    weight : torch.Tensor, optional
+        Pre-initialized weight matrix. If None, weights are initialized using Glorot.
+    bias : torch.Tensor, optional
+        Pre-initialized bias vector. If None, bias is initialized to zeros.
+    improved : bool, optional
+        If True, uses A + 2I instead of A + I for self-loops. Default is False.
+    use_bias : bool, optional
+        Whether to use bias term. Default is True.
+    **kwargs : dict
+        Additional arguments for MessagePassing base class.
 
-    Args:
-        in_channels (int): Size of each input sample.
-        out_channels (int): Size of each output sample.
-        improved (bool, optional): If set to :obj:`True`, the layer computes
-            :math:`\mathbf{\hat{A}}` as :math:`\mathbf{A} + 2\mathbf{I}`.
-            (default: :obj:`False`)
-        cached (bool, optional): If set to :obj:`True`, the layer will cache
-            the computation of :math:`\mathbf{\hat{D}}^{-1/2} \mathbf{\hat{A}}
-            \mathbf{\hat{D}}^{-1/2}` on first execution, and will use the
-            cached version for further executions.
-            This parameter should only be set to :obj:`True` in transductive
-            learning scenarios. (default: :obj:`False`)
-        bias (bool, optional): If set to :obj:`False`, the layer will not learn
-            an additive bias. (default: :obj:`True`)
-        **kwargs (optional): Additional arguments of
-            :class:`torch_geometric.nn.conv.MessagePassing`.
     """
 
     def __init__(self, in_channels, out_channels,
@@ -68,6 +62,32 @@ class CachedGCNConv(MessagePassing):
 
     @staticmethod
     def norm(edge_index, num_nodes, edge_weight=None, improved=False, dtype=None):
+        """
+        Compute normalized adjacency matrix.
+
+        Parameters
+        ----------
+        edge_index : torch.Tensor
+            Edge indices (2, num_edges).
+        num_nodes : int
+            Number of nodes in the graph.
+        edge_weight : torch.Tensor, optional
+            Edge weights. Default is None (all ones).
+        improved : bool, optional
+            Whether to use improved normalization. Default is False.
+        dtype : torch.dtype, optional
+            Data type for computations.
+
+        Returns
+        -------
+        tuple
+            (edge_index, normalized_weights) where normalized_weights contains the 
+            symmetric normalization coefficients.
+
+        Notes
+        -----
+        Implements D^(-1/2) * A * D^(-1/2) normalization with self-loops.
+        """
         if edge_weight is None:
             edge_weight = torch.ones((edge_index.size(1), ), dtype=dtype, device=edge_index.device)
 
@@ -83,7 +103,30 @@ class CachedGCNConv(MessagePassing):
         return edge_index, deg_inv_sqrt[row] * edge_weight * deg_inv_sqrt[col]
 
     def forward(self, x, edge_index, cache_name="default_cache", edge_weight=None):
-        """"""
+        """
+        Forward pass of the layer.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Node feature matrix (num_nodes, in_channels).
+        edge_index : torch.Tensor
+            Edge indices (2, num_edges).
+        cache_name : str, optional
+            Identifier for cached normalization. Default is "default_cache".
+        edge_weight : torch.Tensor, optional
+            Edge weights. Default is None.
+
+        Returns
+        -------
+        torch.Tensor
+            Output feature matrix (num_nodes, out_channels).
+
+        Notes
+        -----
+        Caches the normalized adjacency computation for efficiency in 
+        transductive settings.
+        """
         x = torch.matmul(x, self.weight)
 
         if not cache_name in self.cache_dict:
@@ -95,9 +138,37 @@ class CachedGCNConv(MessagePassing):
         return self.propagate(edge_index, x=x, norm=norm)
 
     def message(self, x_j, norm):
+        """
+        Message computation for message passing.
+
+        Parameters
+        ----------
+        x_j : torch.Tensor
+            Features of neighboring nodes.
+        norm : torch.Tensor
+            Normalization coefficients.
+
+        Returns
+        -------
+        torch.Tensor
+            Normalized messages.
+        """
         return norm.view(-1, 1) * x_j
 
     def update(self, aggr_out):
+        """
+        Update node embeddings after message aggregation.
+
+        Parameters
+        ----------
+        aggr_out : torch.Tensor
+            Aggregated messages.
+
+        Returns
+        -------
+        torch.Tensor
+            Updated node features with optional bias.
+        """
         if self.bias is not None:
             aggr_out = aggr_out + self.bias
         return aggr_out

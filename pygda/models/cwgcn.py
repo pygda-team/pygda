@@ -100,6 +100,28 @@ class CWGCN(BaseGDA):
         self.mode = mode
 
     def init_model(self, **kwargs):
+        """
+        Initialize the CWGCN base model.
+
+        Parameters
+        ----------
+        **kwargs
+            Additional parameters for model initialization.
+
+        Returns
+        -------
+        CWGCNBase
+            Initialized model with specified architecture parameters.
+
+        Notes
+        -----
+        Configures model with:
+
+        - Selected GNN backbone (gcn, sage, gat, or gin)
+        - Two-layer architecture
+        - Mode-specific settings (node/graph)
+        - Dropout and activation functions
+        """
 
         return CWGCNBase(
             in_dim=self.in_dim,
@@ -113,6 +135,32 @@ class CWGCN(BaseGDA):
         ).to(self.device)
 
     def forward_model(self, source_data):
+        """
+        Forward pass of the CWGCN model.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - loss : torch.Tensor
+                Correntropy-induced loss.
+            - source_logits : torch.Tensor
+                Model predictions.
+            - weight : torch.Tensor
+                Sample weights from correntropy.
+            - x_list : list
+                List of intermediate representations.
+
+        Notes
+        -----
+        Handles both node and graph-level tasks with
+        appropriate batch processing.
+        """
         # source domain cross entropy loss
         if self.mode == 'node':
             batch = None
@@ -125,6 +173,42 @@ class CWGCN(BaseGDA):
         return loss, source_logits, weight, x_list
 
     def fit(self, source_data, target_data):
+        """
+        Train the CWGCN model in two steps.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Notes
+        -----
+        Training process consists of two main steps:
+
+        Step 1: Source Domain Training
+
+        - Initializes data loaders based on mode (node/graph)
+        - Trains model with correntropy-induced loss
+        - Updates all model parameters
+        - Monitors source domain performance
+
+        Step 2: Target Domain Adaptation
+
+        - Freezes classification layer parameters
+        - Computes source domain statistics
+        - Aligns feature distributions
+        - Minimizes mean and variance discrepancy
+        - Tracks target domain performance
+
+        Implementation Details:
+
+        - Supports both node and graph-level tasks
+        - Handles full-batch and mini-batch processing
+        - Uses Adam optimizer with weight decay
+        - Implements comprehensive logging
+        """
         if self.mode == 'node':
             self.num_source_nodes, _ = source_data.x.shape
             self.num_target_nodes, _ = target_data.x.shape
@@ -266,9 +350,47 @@ class CWGCN(BaseGDA):
                    train=True)
     
     def process_graph(self, data):
+        """
+        Process the input graph data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data to be processed.
+
+        Notes
+        -----
+        Placeholder method for potential graph preprocessing.
+        Current implementation focuses on direct feature usage.
+        """
         pass
 
     def predict(self, data, source=False):
+        """
+        Make predictions on input data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+        source : bool, optional
+            Whether predicting on source domain. Default: ``False``.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - logits : torch.Tensor
+                Model predictions.
+            - labels : torch.Tensor
+                True labels.
+
+        Notes
+        -----
+        - Handles both node and graph-level predictions
+        - Processes data in batches if specified
+        - Concatenates results for full predictions
+        """
         self.gnn.eval()
 
         if source:
@@ -299,6 +421,33 @@ class CWGCN(BaseGDA):
         return logits, labels
     
     def get_src_mean_std(self, embedding, weight):
+        """
+        Calculate weighted mean and standard deviation of source embeddings.
+
+        Parameters
+        ----------
+        embedding : torch.Tensor
+            Source domain embeddings.
+        weight : torch.Tensor
+            Sample weights from correntropy.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - mean_e : torch.Tensor
+                Weighted mean of embeddings.
+            - var_e : torch.Tensor
+                Bias-corrected standard deviation.
+
+        Notes
+        -----
+        Implements:
+        
+        - Weighted mean computation
+        - Bias-corrected variance estimation
+        - Proper normalization with sample weights
+        """
         sum_w = torch.sum(weight)
         weight = weight.view(-1, 1) * (1 / sum_w)
         mean_e = torch.sum(embedding * weight, dim=0)

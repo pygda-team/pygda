@@ -136,6 +136,28 @@ class JHGDA(BaseGDA):
         self.ls_weight=ls_weight
 
     def init_model(self, **kwargs):
+        """
+        Initialize the JHGDA model.
+
+        Parameters
+        ----------
+        **kwargs
+            Additional parameters for the JHGDABase model.
+
+        Returns
+        -------
+        JHGDABase
+            Initialized model on the specified device.
+
+        Notes
+        -----
+        Configures the base model with hierarchical graph structure parameters:
+
+        - Pooling ratio for graph coarsening
+        - Sharing settings for diffpool module
+        - Sparsity options for efficiency
+        - Classwise conditional adaptation settings
+        """
 
         return JHGDABase(
             in_dim=self.in_dim,
@@ -155,6 +177,46 @@ class JHGDA(BaseGDA):
         ).to(self.device)
 
     def forward_model(self, source_data, target_data):
+        """
+        Forward pass of the JHGDA model.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - loss : torch.Tensor
+                Combined loss from multiple components.
+            - pred[0] : torch.Tensor
+                Source domain predictions.
+            - pred[1] : torch.Tensor
+                Target domain predictions.
+
+        Notes
+        -----
+        Computes multiple loss terms:
+
+        Source domain cross-entropy loss
+        
+        Domain adaptation losses:
+        
+        - Global MMD loss across layers
+        - Classwise conditional MMD loss
+        
+        Hierarchical structure losses:
+        
+        - Conditional cluster entropy (cce)
+        - Label matching (lm)
+        - Label stability (ls)
+        - Cluster entropy (ce)
+        - Proximity loss (prox)
+        """
         # source domain cross entropy loss
         embeddings, pred, pooling_loss, label_matrix = self.jhgda(
             source_data.x,
@@ -188,6 +250,41 @@ class JHGDA(BaseGDA):
         return loss, pred[0], pred[1]
 
     def fit(self, source_data, target_data):
+        """
+        Train the JHGDA model on source and target domain data.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Notes
+        -----
+        Training process includes:
+
+        Data preparation:
+        
+        - Sets up data loaders for batch processing
+        - Handles both full-batch and mini-batch scenarios
+        - Stores source and target graph sizes
+
+        Model setup:
+        
+        - Initializes JHGDA model
+        - Configures Adam optimizer with weight decay
+
+        Training loop:
+        
+        - Performs forward pass with hierarchical adaptation
+        - Updates model parameters
+        - Tracks and logs training metrics:
+            
+            - Loss values
+            - Source domain accuracy
+            - Training time
+        """
 
         if self.batch_size == 0:
             self.source_batch_size = source_data.x.shape[0]
@@ -252,9 +349,43 @@ class JHGDA(BaseGDA):
                    train=True)
     
     def process_graph(self, data):
+        """
+        Process the input graph data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data to be processed.
+
+        Notes
+        -----
+        Placeholder method for graph preprocessing.
+        """
         pass
 
     def predict(self, data):
+        """
+        Make predictions on given data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - logits : torch.Tensor
+                Model predictions.
+            - labels : torch.Tensor
+                True labels.
+
+        Notes
+        -----
+        Uses the model's inference mode for prediction,
+        which may involve hierarchical graph processing.
+        """
         self.jhgda.eval()
 
         with torch.no_grad():

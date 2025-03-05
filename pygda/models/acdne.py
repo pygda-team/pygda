@@ -105,7 +105,19 @@ class ACDNE(BaseGDA):
         self.step=step
 
     def init_model(self, **kwargs):
+        """
+        Initialize the ACDNE model.
 
+        Parameters
+        ----------
+        **kwargs
+            Other parameters for the ACDNEBase model.
+
+        Returns
+        -------
+        ACDNEBase
+            Initialized ACDNE model on the specified device.
+        """
         return ACDNEBase(
             n_input=self.in_dim,
             n_hidden=[self.hid_dim]*2,
@@ -117,9 +129,36 @@ class ACDNE(BaseGDA):
         ).to(self.device)
 
     def forward_model(self, **kwargs):
+        """
+        Forward pass of the model.
+
+        Parameters
+        ----------
+        **kwargs
+            Placeholder for compatibility.
+        """
         pass
 
     def fit(self, source_data, target_data):
+        """
+        Train the ACDNE model.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Notes
+        -----
+        Training process includes:
+        
+        - Processing graph data to compute PPMI matrices
+        - Concatenating node features with neighbor features
+        - Training with mini-batch strategy
+        - Optimizing classification, domain adaptation, and network proximity losses
+        """
         ppmi_s, x_n_s = self.process_graph(source_data)
         ppmi_t, x_n_t = self.process_graph(target_data)
         x_s = source_data.x.detach().cpu().numpy()
@@ -211,6 +250,27 @@ class ACDNE(BaseGDA):
                    train=True)
     
     def process_graph(self, data):
+        """
+        Process the input graph data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - A_ppmi : np.ndarray
+                PPMI matrix of the graph.
+            - X_nei : np.ndarray
+                Aggregated neighbor features.
+
+        Notes
+        -----
+        Computes PPMI matrix and aggregated neighbor features for network embedding.
+        """
         adj = to_dense_adj(data.edge_index).squeeze()
         g = sparse.csc_matrix(adj.detach().cpu().numpy())
         A_k = self.agg_tran_prob_mat(g, self.step)
@@ -222,7 +282,26 @@ class ACDNE(BaseGDA):
         return A_ppmi, X_nei
 
     def agg_tran_prob_mat(self, g, step):
-        """aggregated K-step transition probality"""
+        """
+        Compute aggregated K-step transition probability matrix.
+
+        Parameters
+        ----------
+        g : scipy.sparse.csc_matrix
+            Graph adjacency matrix.
+        step : int
+            Number of transition steps.
+
+        Returns
+        -------
+        np.ndarray
+            Aggregated transition probability matrix.
+
+        Notes
+        -----
+        Aggregates transition probabilities up to K steps for capturing
+        higher-order proximity.
+        """
         g = self.my_scale_sim_mat(g)
         g = csc_matrix.toarray(g)
         a_k = g
@@ -234,7 +313,19 @@ class ACDNE(BaseGDA):
         return a
     
     def my_scale_sim_mat(self, w):
-        """L1 row norm of a matrix"""
+        """
+        Compute L1 row normalization of a matrix.
+
+        Parameters
+        ----------
+        w : np.ndarray or scipy.sparse.csc_matrix
+            Input matrix to be normalized.
+
+        Returns
+        -------
+        np.ndarray or scipy.sparse.csc_matrix
+            Row-normalized matrix.
+        """
         rowsum = np.array(np.sum(w, axis=1), dtype=np.float32)
         r_inv = np.power(rowsum + 1e-12, -1).flatten()
         r_inv[np.isinf(r_inv)] = 0.
@@ -244,7 +335,24 @@ class ACDNE(BaseGDA):
         return w
     
     def compute_ppmi(self, a):
-        """compute PPMI, given aggregated K-step transition probality matrix as input"""
+        """
+        Compute Positive Pointwise Mutual Information (PPMI) matrix.
+
+        Parameters
+        ----------
+        a : np.ndarray
+            Aggregated transition probability matrix.
+
+        Returns
+        -------
+        np.ndarray
+            PPMI matrix.
+
+        Notes
+        -----
+        PPMI captures the statistical significance of node co-occurrences
+        in random walks.
+        """
         np.fill_diagonal(a, 0)
         a = self.my_scale_sim_mat(a)
         (p, q) = np.shape(a)
@@ -258,7 +366,31 @@ class ACDNE(BaseGDA):
         return ppmi
 
     def batch_ppmi(self, batch_size, shuffle_index_s, shuffle_index_t, ppmi_s, ppmi_t):
-        """return the PPMI matrix between nodes in each batch"""
+        """
+        Extract PPMI matrices for mini-batch nodes.
+
+        Parameters
+        ----------
+        batch_size : int
+            Size of mini-batch.
+        shuffle_index_s : np.ndarray
+            Shuffled indices for source domain.
+        shuffle_index_t : np.ndarray
+            Shuffled indices for target domain.
+        ppmi_s : np.ndarray
+            PPMI matrix of source domain.
+        ppmi_t : np.ndarray
+            PPMI matrix of target domain.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - a_s : np.ndarray
+                Normalized PPMI matrix for source batch.
+            - a_t : np.ndarray
+                Normalized PPMI matrix for target batch.
+        """
         # #proximity matrix between source network nodes in each mini-batch
         # noinspection DuplicatedCode
         a_s = np.zeros((int(batch_size / 2), int(batch_size / 2)))
@@ -276,6 +408,25 @@ class ACDNE(BaseGDA):
         return self.my_scale_sim_mat(a_s), self.my_scale_sim_mat(a_t)
 
     def predict(self, data, train=False):
+        """
+        Make predictions on given data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+        train : bool, optional
+            Whether in training mode. Default: ``False``.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - logits : torch.Tensor
+                Model predictions.
+            - labels : torch.Tensor
+                True labels.
+        """
         self.acdne.eval()
 
         with torch.no_grad():
@@ -289,11 +440,49 @@ class ACDNE(BaseGDA):
         return logits, data.y
     
     def shuffle_aligned_list(self, data):
+        """
+        Shuffle multiple aligned lists together.
+
+        Parameters
+        ----------
+        data : list
+            List of arrays to be shuffled in the same order.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - shuffle_index : np.ndarray
+                Generated shuffle indices.
+            - shuffled_data : list
+                List of shuffled arrays.
+        """
         num = data[0].shape[0]
         shuffle_index = np.random.permutation(num)
         return shuffle_index, [d[shuffle_index] for d in data]
 
     def batch_generator(self, data, batch_size, shuffle=True):
+        """
+        Generate mini-batches from data.
+
+        Parameters
+        ----------
+        data : list
+            List of arrays to be batched.
+        batch_size : int
+            Size of each batch.
+        shuffle : bool, optional
+            Whether to shuffle data. Default: ``True``.
+
+        Yields
+        ------
+        tuple
+            Contains:
+            - batch_data : list
+                List of arrays for current batch.
+            - shuffle_index : np.ndarray
+                Shuffle indices for current batch.
+        """
         shuffle_index = None
         if shuffle:
             shuffle_index, data = self.shuffle_aligned_list(data)

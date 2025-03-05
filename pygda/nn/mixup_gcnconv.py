@@ -17,6 +17,31 @@ from torch_sparse import SparseTensor, matmul
 
 
 class GraphConv(MessagePassing):
+    """
+    Basic graph convolution layer with center node handling.
+
+    Parameters
+    ----------
+    in_channels : int
+        Number of input channels
+    out_channels : int
+        Number of output channels
+    aggr : str, optional
+        Aggregation method ('mean', 'add', etc.). Default: 'mean'
+    bias : bool, optional
+        Whether to include bias. Default: True
+    **kwargs : optional
+        Additional arguments for MessagePassing
+
+    Notes
+    -----
+    Performs message passing with:
+    
+    - Linear transformation of source nodes
+    - Separate transformation for center nodes
+    - Message aggregation
+    """
+
     def __init__(self, in_channels, out_channels, aggr='mean', bias=True,
                  **kwargs):
         super(GraphConv, self).__init__(aggr=aggr, **kwargs)
@@ -34,6 +59,23 @@ class GraphConv(MessagePassing):
         self.lin.reset_parameters()
 
     def forward(self, x, edge_index, x_cen):
+        """
+        Forward pass of the layer.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input node features
+        edge_index : torch.Tensor
+            Edge indices
+        x_cen : torch.Tensor
+            Center node features
+
+        Returns
+        -------
+        torch.Tensor
+            Updated node features
+        """
         h = torch.matmul(x, self.weight)
         aggr_out = self.propagate(edge_index, size=None, h=h, edge_weight=None)
         return aggr_out + self.lin(x_cen)
@@ -47,54 +89,27 @@ class GraphConv(MessagePassing):
 
 
 class MixUpGCNConv(gnn.MessagePassing):
-    r"""The graph convolutional operator from the `"Mixup for Node and Graph Classification"
-    <https://dl.acm.org/doi/abs/10.1145/3442381.3449796>`_ paper and `"Semi-supervised
-    Classification with Graph Convolutional Networks"
-    <https://arxiv.org/abs/1609.02907>`_ paper
-    .. math::
-        \mathbf{X}^{\prime} = \mathbf{\hat{D}}^{-1/2} \mathbf{\hat{A}}
-        \mathbf{\hat{D}}^{-1/2} \mathbf{X} \mathbf{\Theta},
-    where :math:`\mathbf{\hat{A}} = \mathbf{A} + \mathbf{I}` denotes the
-    adjacency matrix with inserted self-loops and
-    :math:`\hat{D}_{ii} = \sum_{j=0} \hat{A}_{ij}` its diagonal degree matrix.
-    The adjacency matrix can include other values than :obj:`1` representing
-    edge weights via the optional :obj:`edge_weight` tensor.
-    Its node-wise formulation is given by:
-    .. math::
-        \mathbf{x}^{\prime}_i = \mathbf{\Theta}^{\top} \sum_{j \in
-        \mathcal{N}(v) \cup \{ i \}} \frac{e_{j,i}}{\sqrt{\hat{d}_j
-        \hat{d}_i}} \mathbf{x}_j
-    with :math:`\hat{d}_i = 1 + \sum_{j \in \mathcal{N}(i)} e_{j,i}`, where
-    :math:`e_{j,i}` denotes the edge weight from source node :obj:`j` to target
-    node :obj:`i` (default: :obj:`1.0`)
-    Args:
-        in_channels (int): Size of each input sample, or :obj:`-1` to derive
-            the size from the first input(s) to the forward method.
-        out_channels (int): Size of each output sample.
-        improved (bool, optional): If set to :obj:`True`, the layer computes
-            :math:`\mathbf{\hat{A}}` as :math:`\mathbf{A} + 2\mathbf{I}`.
-            (default: :obj:`False`)
-        cached (bool, optional): If set to :obj:`True`, the layer will cache
-            the computation of :math:`\mathbf{\hat{D}}^{-1/2} \mathbf{\hat{A}}
-            \mathbf{\hat{D}}^{-1/2}` on first execution, and will use the
-            cached version for further executions.
-            This parameter should only be set to :obj:`True` in transductive
-            learning scenarios. (default: :obj:`False`)
-        add_self_loops (bool, optional): If set to :obj:`False`, will not add
-            self-loops to the input graph. (default: :obj:`True`)
-        normalize (bool, optional): Whether to add self-loops and compute
-            symmetric normalization coefficients on the fly.
-            (default: :obj:`True`)
-        bias (bool, optional): If set to :obj:`False`, the layer will not learn
-            an additive bias. (default: :obj:`True`)
-        **kwargs (optional): Additional arguments of
-            :class:`torch_geometric.nn.conv.MessagePassing`.
-    Shapes:
-        - **input:**
-          node features :math:`(|\mathcal{V}|, F_{in})`,
-          edge indices :math:`(2, |\mathcal{E}|)`,
-          edge weights :math:`(|\mathcal{E}|)` *(optional)*
-        - **output:** node features :math:`(|\mathcal{V}|, F_{out})`
+    """
+    Graph convolutional operator with mixup capabilities.
+
+    Parameters
+    ----------
+    in_channels : int
+        Number of input channels
+    out_channels : int
+        Number of output channels
+    improved : bool, optional
+        If True, uses A + 2I for self-loops. Default: False
+    cached : bool, optional
+        Whether to cache normalized adjacency matrix. Default: False
+    add_self_loops : bool, optional
+        Whether to add self-loops to input graph. Default: False
+    normalize : bool, optional
+        Whether to apply symmetric normalization. Default: True
+    bias : bool, optional
+        Whether to include bias. Default: True
+    **kwargs : optional
+        Additional arguments for MessagePassing
     """
 
     def __init__(self, in_channels: int, out_channels: int,
@@ -135,7 +150,35 @@ class MixUpGCNConv(gnn.MessagePassing):
 
     def forward(self, x: Tensor, x_cen: Tensor, edge_index: Adj,
                 edge_weight: OptTensor = None, lmda = 1) -> Tensor:
-        """"""
+        """
+        Forward pass with mixup interpolation.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input node features
+        x_cen : torch.Tensor
+            Center node features
+        edge_index : torch.Tensor or SparseTensor
+            Edge indices
+        edge_weight : torch.Tensor, optional
+            Edge weights. Default: None
+        lmda : float, optional
+            Mixup interpolation coefficient. Default: 1
+
+        Returns
+        -------
+        torch.Tensor
+            Updated node features with mixup
+
+        Notes
+        -----
+        - Graph normalization (if enabled)
+        - Linear transformation
+        - Message passing with mixup
+        - Center node transformation
+        - Optional bias addition
+        """
         edge_rw = edge_weight
         edge_weight = None
         if self.normalize:
@@ -172,6 +215,30 @@ class MixUpGCNConv(gnn.MessagePassing):
         return out
 
     def message(self, x_j: Tensor, edge_weight: OptTensor, lmda, edge_rw) -> Tensor:
+        """
+        Define message computation.
+
+        Parameters
+        ----------
+        x_j : torch.Tensor
+            Source node features
+        edge_weight : torch.Tensor
+            Normalized edge weights
+        lmda : float
+            Mixup interpolation coefficient
+        edge_rw : torch.Tensor
+            Raw edge weights for reweighting
+
+        Returns
+        -------
+        torch.Tensor
+            Computed messages with mixup interpolation
+
+        Notes
+        -----
+        Interpolates between normalized and reweighted messages:
+        message = (1-lambda) * normalized + lambda * reweighted
+        """
         x_j = (edge_weight.view(-1, 1) * x_j)
         x_j = (1-lmda) * x_j + (lmda) * (edge_rw.view(-1, 1) * x_j)
         return x_j

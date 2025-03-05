@@ -108,6 +108,28 @@ class A2GNN(BaseGDA):
         self.mode=mode
 
     def init_model(self, **kwargs):
+        """
+        Initialize the A2GNN base model.
+
+        Parameters
+        ----------
+        **kwargs
+            Additional parameters for model initialization.
+
+        Returns
+        -------
+        A2GNNBase
+            Initialized model with specified architecture parameters.
+
+        Notes
+        -----
+        Configures model with:
+
+        - Asymmetric propagation settings
+        - Domain adaptation components
+        - Task-specific architecture (node/graph)
+        - Optional adversarial training module
+        """
 
         return A2GNNBase(
             in_dim=self.in_dim,
@@ -122,6 +144,39 @@ class A2GNN(BaseGDA):
         ).to(self.device)
 
     def forward_model(self, source_data, target_data, alpha):
+        """
+        Forward pass of the A2GNN model.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+        alpha : float
+            Gradient reversal scaling parameter.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - loss : torch.Tensor
+                Combined loss from multiple components.
+            - source_logits : torch.Tensor
+                Source domain predictions.
+            - target_logits : torch.Tensor
+                Target domain predictions.
+
+        Notes
+        -----
+        Implements multiple components:
+
+        - Asymmetric propagation (s_pnums vs t_pnums)
+        - Classification loss on source domain
+        - Domain adaptation (adversarial or MMD)
+        - Feature bottleneck processing
+        """
+
         # source domain cross entropy loss
         source_logits = self.a2gnn(source_data, self.s_pnums)
         train_loss = F.nll_loss(F.log_softmax(source_logits, dim=1), source_data.y)
@@ -158,6 +213,43 @@ class A2GNN(BaseGDA):
         return loss, source_logits, target_logits
 
     def fit(self, source_data, target_data):
+        """
+        Train the A2GNN model on source and target domain data.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Notes
+        -----
+        Training process includes:
+
+        Data Preparation
+
+        - Configures loaders for node/graph level tasks
+        - Handles both full-batch and mini-batch scenarios
+        - Sets up appropriate batch processing
+
+        Training Loop
+
+        - Dynamic adaptation parameter scaling
+        - Asymmetric message propagation
+        - Domain adaptation through either:
+            
+            * Adversarial training
+            * MMD minimization
+
+        - Comprehensive progress monitoring
+
+        Implementation Features
+
+        - Flexible task handling (node/graph)
+        - Efficient batch processing
+        - Adaptive learning mechanisms
+        """
 
         if self.mode == 'node':
             self.num_source_nodes, _ = source_data.x.shape
@@ -244,9 +336,51 @@ class A2GNN(BaseGDA):
                    train=True)
     
     def process_graph(self, data):
-        pass
+        """
+        Process the input graph data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data to be processed.
+
+        Notes
+        -----
+        Placeholder method as preprocessing is handled through:
+        
+        - Asymmetric propagation mechanisms
+        - Domain-specific feature processing
+        - Batch-wise data handling
+        """
 
     def predict(self, data, source=False):
+        """
+        Make predictions on input data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+        source : bool, optional
+            Whether predicting on source domain. Default: ``False``.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - logits : torch.Tensor
+                Model predictions.
+            - labels : torch.Tensor
+                True labels.
+
+        Notes
+        -----
+        - Uses different propagation steps for source/target
+        - Handles batch processing efficiently
+        - Concatenates results for full predictions
+        - Maintains evaluation mode consistency
+        """
+
         self.a2gnn.eval()
 
         if source:

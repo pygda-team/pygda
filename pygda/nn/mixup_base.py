@@ -9,28 +9,34 @@ from torch.nn import Linear
 
 class MixupBase(nn.Module):
     """
-    GNN mixup base model.
+    GNN mixup base model for graph data augmentation.
 
     Parameters
     ----------
     in_dim : int
-        Input dimension of model.
+        Input dimension of model
     hid_dim : int
-        Hidden dimension of model.
+        Hidden dimension of model
     num_classes : int
-        Number of classes.
+        Number of classes
     num_layers : int, optional
-        Total number of layers in model. Default: ``4``.
+        Total number of layers in model. Default: 1
     dropout : float, optional
-        Dropout rate. Default: ``0.``.
-    act : callable activation function or None, optional
-        Activation function if not None.
-        Default: ``torch.nn.functional.relu``.
+        Dropout rate. Default: 0.1
+    act : callable, optional
+        Activation function. Default: torch.nn.functional.relu
     rw_lmda : float, optional
-        The hyper-parameter of edge reweight.
-        Default: ``0.8``.
+        Edge reweight hyperparameter. Default: 0.8
     **kwargs : optional
-        Other parameters for the backbone.
+        Additional parameters for the backbone
+
+    Notes
+    -----
+    Architecture:
+
+    - Multiple MixUpGCNConv layers
+    - Intermediate feature mixing
+    - Final classification layer
     """
 
     def __init__(self,
@@ -62,12 +68,65 @@ class MixupBase(nn.Module):
         self.cls = Linear(self.hid_dim, self.num_classes)
             
     def forward(self, x, edge_index, edge_index_b, lam, id_new_value_old, edge_weight):
+        """
+        Forward pass of the MixupBase model.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input node features
+        edge_index : torch.Tensor
+            Edge indices of original graph
+        edge_index_b : torch.Tensor
+            Edge indices of mixed graph
+        lam : float
+            Mixup interpolation coefficient
+        id_new_value_old : torch.Tensor
+            Mapping between original and mixed node indices
+        edge_weight : torch.Tensor
+            Edge weights for graph convolution
+
+        Returns
+        -------
+        torch.Tensor
+            Classification logits for each node
+        """
         x = self.feat_bottleneck(x, edge_index, edge_index_b, lam, id_new_value_old, edge_weight)
         x = self.feat_classifier(x)
 
         return x
     
     def feat_bottleneck(self, x, edge_index, edge_index_b, lam, id_new_value_old, edge_weight):
+        """
+        Feature extraction and mixing through GNN layers.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input node features
+        edge_index : torch.Tensor
+            Edge indices of original graph
+        edge_index_b : torch.Tensor
+            Edge indices of mixed graph
+        lam : float
+            Mixup interpolation coefficient
+        id_new_value_old : torch.Tensor
+            Mapping between original and mixed node indices
+        edge_weight : torch.Tensor
+            Edge weights for graph convolution
+
+        Returns
+        -------
+        torch.Tensor
+            Mixed node features after GNN processing
+
+        Notes
+        -----
+        - Initial feature propagation (layers 0-1)
+        - Feature mixing with interpolation
+        - Additional layer processing (if num_layers > 2)
+        - Dropout and activation at each step
+        """
         x1 = self.convs[0](x, x, edge_index, edge_weight, self.rw_lmda)
         x1 = self.act(x1)
         x1 = F.dropout(x1, p=self.dropout, training=self.training)
@@ -119,6 +178,23 @@ class MixupBase(nn.Module):
         return x_mix
     
     def feat_classifier(self, x):
+        """
+        Final classification layer.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input features from bottleneck
+
+        Returns
+        -------
+        torch.Tensor
+            Classification logits for each node
+
+        Notes
+        -----
+        Applies linear transformation to get class predictions
+        """
         x = self.cls(x)
         
         return x

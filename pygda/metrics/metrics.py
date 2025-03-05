@@ -3,17 +3,33 @@ from sklearn.metrics import roc_auc_score, average_precision_score, f1_score
 
 def eval_roc_auc(label, score):
     """
-    ROC-AUC score for binary classification.
+    Calculate ROC-AUC score for binary classification.
 
     Parameters
     ----------
     label : torch.Tensor
+        Ground truth binary labels in shape of (N,)
     score : torch.Tensor
+        Predicted scores/probabilities in shape of (N,)
 
     Returns
     -------
-    roc_auc : float
-        Average ROC-AUC score across different labels.
+    float
+        ROC-AUC score, adjusted to be in [0.5, 1.0] range
+
+    Notes
+    -----
+    Processing Steps:
+
+    - Convert tensors to numpy arrays
+    - Calculate standard ROC-AUC
+    - Adjust scores < 0.5 to their complement
+
+    Features:
+    
+    - CPU computation
+    - Score normalization
+    - Binary classification focus
     """
     label = label.cpu().numpy()
     score = score.cpu().numpy()
@@ -27,24 +43,37 @@ def eval_roc_auc(label, score):
 
 def eval_recall_at_k(label, score, k=None):
     """
-    Recall score for top k instances.
+    Calculate Recall@K metric for top-k predictions.
 
     Parameters
     ----------
     label : torch.Tensor
-        Labels in shape of ``(N, )``.
+        Ground truth binary labels in shape of (N,)
     score : torch.Tensor
-        Scores in shape of ``(N, )``.
+        Predicted scores/probabilities in shape of (N,)
     k : int, optional
-        The number of instances to evaluate. ``None`` for
-        recall. Default: ``None``.
+        Number of top instances to consider
+        If None, uses number of positive labels
 
     Returns
     -------
-    recall_at_k : float
-        Recall for top k instances.
-    """
+    float
+        Recall score for top-k predictions
 
+    Notes
+    -----
+    Processing Steps:
+
+    - Determine k value (if not provided)
+    - Get top-k scoring instances
+    - Calculate recall as (true positives) / (total positives)
+
+    Features:
+    
+    - Flexible k selection
+    - Efficient top-k computation
+    - Normalized metric
+    """
     if k is None:
         k = sum(label)
     recall_at_k = sum(label[score.topk(k).indices]) / sum(label)
@@ -52,6 +81,38 @@ def eval_recall_at_k(label, score, k=None):
 
 
 def eval_precision_at_k(label, score, k=None):
+    """
+    Calculate Precision@K metric for top-k predictions.
+
+    Parameters
+    ----------
+    label : torch.Tensor
+        Ground truth binary labels in shape of (N,)
+    score : torch.Tensor
+        Predicted scores/probabilities in shape of (N,)
+    k : int, optional
+        Number of top instances to consider
+        If None, uses number of positive labels
+
+    Returns
+    -------
+    float
+        Precision score for top-k predictions
+
+    Notes
+    -----
+    Processing Steps:
+
+    - Determine k value (if not provided)
+    - Get top-k scoring instances
+    - Calculate precision as (true positives) / k
+
+    Features:
+    
+    - Flexible k selection
+    - Efficient top-k computation
+    - Normalized metric
+    """
     if k is None:
         k = sum(label)
     precision_at_k = sum(label[score.topk(k).indices]) / k
@@ -60,21 +121,37 @@ def eval_precision_at_k(label, score, k=None):
 
 def eval_average_precision(label, score):
     """
-    Average precision score for binary classification.
+    Calculate Average Precision score for binary classification.
 
     Parameters
     ----------
     label : torch.Tensor
-        Labels in shape of ``(N, )``, where 1 represents outliers,
-        0 represents normal instances.
+        Ground truth binary labels in shape of (N,)
+        1 represents outliers, 0 represents normal instances
     score : torch.Tensor
-        Outlier scores in shape of ``(N, )``.
+        Predicted outlier scores in shape of (N,)
 
     Returns
     -------
-    ap : float
-        Average precision score.
+    float
+        Average Precision score
+
+    Notes
+    -----
+    Processing Steps:
+
+    - Convert tensors to numpy arrays
+    - Calculate average precision using scikit-learn
+    - Handle binary classification scenario
+
+    Features:
+    
+    - CPU computation
+    - Outlier detection focus
+    - Balanced metric
     """
+    score = score.cpu().numpy()
+    label = label.cpu().numpy()
 
     ap = average_precision_score(y_true=label, y_score=score)
     return ap
@@ -82,21 +159,34 @@ def eval_average_precision(label, score):
 
 def eval_micro_f1(label, pred):
     """
-    Micro-F1 score.
+    Calculate Micro-F1 score for multi-class classification.
 
     Parameters
     ----------
     label : torch.Tensor
-        Labels in shape of ``(N, )``.
+        Ground truth labels in shape of (N,)
     pred : torch.Tensor
-        Predictions in shape of ``(N, )``.
+        Predicted class labels in shape of (N,)
 
     Returns
     -------
-    f1 : float
-        Micro-F1 score.
-    """
+    float
+        Micro-averaged F1 score
 
+    Notes
+    -----
+    Processing Steps:
+
+    - Convert tensors to numpy arrays
+    - Calculate micro-averaged F1 score
+    - Handle multi-class scenario
+
+    Features:
+    
+    - CPU computation
+    - Instance-weighted averaging
+    - Multi-class support
+    """
     pred = pred.cpu().numpy()
     label = label.cpu().numpy()
 
@@ -105,21 +195,34 @@ def eval_micro_f1(label, pred):
 
 def eval_macro_f1(label, pred):
     """
-    Macro-F1 score.
+    Calculate Macro-F1 score for multi-class classification.
 
     Parameters
     ----------
     label : torch.Tensor
-        Labels in shape of ``(N, )``.
+        Ground truth labels in shape of (N,)
     pred : torch.Tensor
-        Predictions in shape of ``(N, )``.
+        Predicted class labels in shape of (N,)
 
     Returns
     -------
-    f1 : float
-        Macro-F1 score.
-    """
+    float
+        Macro-averaged F1 score
 
+    Notes
+    -----
+    Processing Steps:
+
+    - Convert tensors to numpy arrays
+    - Calculate macro-averaged F1 score
+    - Handle multi-class scenario
+
+    Features:
+    
+    - CPU computation
+    - Class-weighted averaging
+    - Multi-class support
+    """
     pred = pred.cpu().numpy()
     label = label.cpu().numpy()
 

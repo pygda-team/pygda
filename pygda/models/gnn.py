@@ -93,6 +93,19 @@ class GNN(BaseGDA):
         self.gnn=gnn
 
     def init_model(self, **kwargs):
+        """
+        Initialize the GNN model.
+
+        Parameters
+        ----------
+        **kwargs
+            Other parameters for the GNNBase model.
+
+        Returns
+        -------
+        GNNBase
+            Initialized GNN model on the specified device.
+        """
 
         return GNNBase(
             in_dim=self.in_dim,
@@ -105,6 +118,27 @@ class GNN(BaseGDA):
         ).to(self.device)
 
     def forward_model(self, source_data, target_data):
+        """
+        Forward pass of the model.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Returns
+        -------
+        tuple
+            Contains (loss, source_logits, target_logits):
+            - loss : torch.Tensor
+                Cross entropy loss on source domain
+            - source_logits : torch.Tensor
+                Model predictions for source domain
+            - target_logits : torch.Tensor
+                Model predictions for target domain
+        """
         # source domain cross entropy loss
         source_logits = self.gnn(source_data.x, source_data.edge_index)
         target_logits = self.gnn(target_data.x, target_data.edge_index)
@@ -114,6 +148,24 @@ class GNN(BaseGDA):
         return loss, source_logits, target_logits
 
     def fit(self, source_data, target_data):
+        """
+        Train the GNN model.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Notes
+        -----
+        The training process includes:
+        - Creating data loaders for both domains
+        - Initializing the GNN model and optimizer
+        - Training for specified number of epochs
+        - Logging training progress (loss and micro-F1 score)
+        """
 
         if self.batch_size == 0:
             self.source_batch_size = source_data.x.shape[0]
@@ -175,9 +227,39 @@ class GNN(BaseGDA):
                    train=True)
     
     def process_graph(self, data):
+        """
+        Process the input graph data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data to be processed.
+
+        Notes
+        -----
+        This is a placeholder method that should be implemented by subclasses
+        if graph preprocessing is needed.
+        """
         pass
 
     def predict(self, data):
+        """
+        Make predictions using the trained model.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+
+        Returns
+        -------
+        tuple
+            Contains (logits, labels):
+            - logits : torch.Tensor
+                Model predictions
+            - labels : torch.Tensor
+                True labels from the data
+        """
         self.gnn.eval()
 
         with torch.no_grad():

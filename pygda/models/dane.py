@@ -117,6 +117,19 @@ class DANE(BaseGDA):
         self.mode=mode
 
     def init_model(self, **kwargs):
+        """
+        Initialize the GNN model.
+
+        Parameters
+        ----------
+        **kwargs
+            Other parameters for the GNNBase model.
+
+        Returns
+        -------
+        GNNBase
+            Initialized GNN model on the specified device.
+        """
 
         return GNNBase(
             in_dim=self.in_dim,
@@ -130,6 +143,27 @@ class DANE(BaseGDA):
         ).to(self.device)
 
     def forward_model(self, source_data, target_data):
+        """
+        Forward pass of the model with adversarial training.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - loss : float
+                Combined loss from discriminator and generator.
+            - source_logits : torch.Tensor
+                Model predictions for source domain.
+            - target_logits : torch.Tensor
+                Model predictions for target domain.
+        """
         for dis_epoch in range(5):
             discriminator_loss = self.train_d(source_data, target_data)
         generator_loss = self.train_g(source_data, target_data)
@@ -146,6 +180,25 @@ class DANE(BaseGDA):
         return loss, source_logits, target_logits
 
     def fit(self, source_data, target_data):
+        """
+        Train the DANE model.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Notes
+        -----
+        The training process includes:
+        
+        - Converting graphs to undirected if needed
+        - Setting up data loaders for both domains
+        - Initializing GNN and domain discriminator
+        - Training with adversarial learning
+        """
         if self.mode == 'node':
             if not is_undirected(source_data.edge_index):
                 source_data.edge_index = to_undirected(source_data.edge_index)
@@ -231,9 +284,41 @@ class DANE(BaseGDA):
                    train=True)
 
     def process_graph(self, data):
+        """
+        Process the input graph data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data to be processed.
+
+        Notes
+        -----
+        Placeholder method for graph preprocessing.
+        """
         pass
     
     def train_d(self, source_data, target_data):
+        """
+        Train the domain discriminator.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Returns
+        -------
+        float
+            Discriminator loss value.
+
+        Notes
+        -----
+        Trains discriminator to distinguish between source and target domains
+        using adversarial learning approach.
+        """
         self.gnn.eval()
 
         if self.mode == 'node':
@@ -270,6 +355,27 @@ class DANE(BaseGDA):
         return loss.item()
     
     def L_GCN(self, embedding, nodes_weight, idx_u, idx_v, k):
+        """
+        Calculate GCN loss for network embedding.
+
+        Parameters
+        ----------
+        embedding : torch.Tensor
+            Node embeddings.
+        nodes_weight : torch.Tensor
+            Weight for each node.
+        idx_u : list
+            Source node indices.
+        idx_v : list
+            Target node indices.
+        k : int
+            Number of negative samples.
+
+        Returns
+        -------
+        torch.Tensor
+            GCN loss value.
+        """
         embedding_u = embedding[idx_u]
         embedding_v = embedding[idx_v]
 
@@ -283,6 +389,29 @@ class DANE(BaseGDA):
         return loss
 
     def L_cluster(self, labelsA, embA, labelsB, embB):
+        """
+        Calculate cluster alignment loss.
+
+        Parameters
+        ----------
+        labelsA : torch.Tensor
+            Labels from domain A.
+        embA : torch.Tensor
+            Embeddings from domain A.
+        labelsB : torch.Tensor
+            Labels from domain B.
+        embB : torch.Tensor
+            Embeddings from domain B.
+
+        Returns
+        -------
+        torch.Tensor
+            Cluster alignment loss value.
+
+        Notes
+        -----
+        Aligns the cluster centers of same classes across domains.
+        """
         loss = 0.0
         labelsA = labelsA.detach().cpu().numpy()
         labelsB = labelsB.detach().cpu().numpy()
@@ -295,6 +424,30 @@ class DANE(BaseGDA):
         return answer
     
     def train_g(self, source_data, target_data):
+        """
+        Train the generator (GNN model).
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Returns
+        -------
+        float
+            Generator loss value.
+
+        Notes
+        -----
+        Combines multiple loss terms:
+
+        - Adversarial loss
+        - GCN loss for network embedding
+        - Cross-entropy loss for classification
+        - Cluster alignment loss (in semi-supervised mode)
+        """
         self.gnn.train()
 
         if self.mode == 'node':
@@ -363,6 +516,26 @@ class DANE(BaseGDA):
         return loss.item()
 
     def predict(self, data, source=False):
+        """
+        Make predictions on given data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+        source : bool, optional
+            Whether the input is from source domain.
+            Default: ``False``.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - logits : torch.Tensor
+                Model predictions.
+            - labels : torch.Tensor
+                True labels.
+        """
         self.gnn.eval()
 
         if source:

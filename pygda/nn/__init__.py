@@ -21,6 +21,8 @@ from .sagda_base import SAGDABase
 from .cwgcn_base import CWGCNBase
 from .reweight_gnn import ReweightGNN
 from .soga_base import SOGABase
+from .node_centric_conv import NodeCentricConv, NodeCentricMLP
+from .graphata_base import GraphATABase
 
 
 __all__ = [
@@ -46,5 +48,8 @@ __all__ = [
     "SAGDABase",
     "CWGCNBase",
     "ReweightGNN",
-    "SOGABase"
+    "SOGABase",
+    "NodeCentricConv",
+    "NodeCentricMLP",
+    "GraphATABase"
 ]

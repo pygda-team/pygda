@@ -23,7 +23,29 @@ def gcn_norm(edge_index, edge_weight=None, num_nodes=None, improved=False,
 
 def gcn_norm(edge_index, edge_weight=None, num_nodes=None, improved=False,
              add_self_loops=True, dtype=None):
+    """
+    Compute symmetric normalization for graph convolution.
 
+    Parameters
+    ----------
+    edge_index : torch.Tensor or SparseTensor
+        Edge indices or sparse adjacency matrix
+    edge_weight : torch.Tensor, optional
+        Edge weights. Default: None
+    num_nodes : int, optional
+        Number of nodes. Default: None
+    improved : bool, optional
+        If True, use A + 2I instead of A + I. Default: False
+    add_self_loops : bool, optional
+        Whether to add self-loops. Default: True
+    dtype : torch.dtype, optional
+        Data type for computations. Default: None
+
+    Returns
+    -------
+    tuple[torch.Tensor, torch.Tensor] or SparseTensor
+        Normalized edge indices and weights, or normalized sparse tensor
+    """
     fill_value = 2. if improved else 1.
 
     if isinstance(edge_index, SparseTensor):
@@ -60,29 +82,34 @@ def gcn_norm(edge_index, edge_weight=None, num_nodes=None, improved=False,
 
 
 class PropGCNConv(MessagePassing):
-    r"""
-    Args:
-        in_channels (int): Size of each input sample, or :obj:`-1` to derive
-            the size from the first input(s) to the forward method.
-        out_channels (int): Size of each output sample.
-        improved (bool, optional): If set to :obj:`True`, the layer computes
-            :math:`\mathbf{\hat{A}}` as :math:`\mathbf{A} + 2\mathbf{I}`.
-            (default: :obj:`False`)
-        cached (bool, optional): If set to :obj:`True`, the layer will cache
-            the computation of :math:`\mathbf{\hat{D}}^{-1/2} \mathbf{\hat{A}}
-            \mathbf{\hat{D}}^{-1/2}` on first execution, and will use the
-            cached version for further executions.
-            This parameter should only be set to :obj:`True` in transductive
-            learning scenarios. (default: :obj:`False`)
-        add_self_loops (bool, optional): If set to :obj:`False`, will not add
-            self-loops to the input graph. (default: :obj:`True`)
-        normalize (bool, optional): Whether to add self-loops and compute
-            symmetric normalization coefficients on the fly.
-            (default: :obj:`True`)
-        bias (bool, optional): If set to :obj:`False`, the layer will not learn
-            an additive bias. (default: :obj:`True`)
-        **kwargs (optional): Additional arguments of
-            :class:`torch_geometric.nn.conv.MessagePassing`.
+    """
+    Propagation Graph Convolutional Network layer with multiple propagation steps.
+
+    Parameters
+    ----------
+    in_channels : int
+        Size of input features
+    out_channels : int
+        Size of output features
+    improved : bool, optional
+        If True, use A + 2I instead of A + I. Default: False
+    cached : bool, optional
+        Whether to cache normalized adjacency matrix. Default: False
+    add_self_loops : bool, optional
+        Whether to add self-loops. Default: True
+    normalize : bool, optional
+        Whether to apply symmetric normalization. Default: True
+    bias : bool, optional
+        Whether to include bias. Default: True
+    **kwargs : optional
+        Additional MessagePassing arguments
+
+    Notes
+    -----
+    - Multiple propagation steps
+    - Cached normalization
+    - Sparse tensor support
+    - Configurable self-loops
     """
 
     _cached_edge_index: Optional[Tuple[Tensor, Tensor]]
@@ -125,7 +152,32 @@ class PropGCNConv(MessagePassing):
 
     def forward(self, x: Tensor, edge_index: Adj,
                 prop_nums = 1, edge_weight: OptTensor = None) -> Tensor:
-        """"""
+        """
+        Forward pass with multiple propagation steps.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Node feature matrix
+        edge_index : torch.Tensor or SparseTensor
+            Edge indices or sparse adjacency matrix
+        prop_nums : int, optional
+            Number of propagation steps. Default: 1
+        edge_weight : torch.Tensor, optional
+            Edge weights. Default: None
+
+        Returns
+        -------
+        torch.Tensor
+            Output node features
+
+        Notes
+        -----
+        - Graph normalization (if enabled)
+        - Linear transformation
+        - Multiple propagation steps
+        - Optional bias addition
+        """
 
         if self.normalize:
             if isinstance(edge_index, Tensor):
@@ -164,9 +216,47 @@ class PropGCNConv(MessagePassing):
 
 
     def message(self, x_j: Tensor, edge_weight: OptTensor) -> Tensor:
+        """
+        Define message computation.
+
+        Parameters
+        ----------
+        x_j : torch.Tensor
+            Source node features
+        edge_weight : torch.Tensor, optional
+            Edge weights
+
+        Returns
+        -------
+        torch.Tensor
+            Computed messages
+
+        Notes
+        -----
+        Applies edge weights if provided, otherwise passes features directly
+        """
         return x_j if edge_weight is None else edge_weight.view(-1, 1) * x_j
 
     def message_and_aggregate(self, adj_t: SparseTensor, x: Tensor) -> Tensor:
+        """
+        Fused message and aggregation computation.
+
+        Parameters
+        ----------
+        adj_t : SparseTensor
+            Sparse adjacency matrix
+        x : torch.Tensor
+            Node features
+
+        Returns
+        -------
+        torch.Tensor
+            Aggregated messages
+
+        Notes
+        -----
+        Optimized sparse matrix multiplication for efficiency
+        """
         return matmul(adj_t, x, reduce=self.aggr)
 
     def __repr__(self):

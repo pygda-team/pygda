@@ -17,6 +17,36 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 
 class FacebookDataset(InMemoryDataset):
+    """
+    Facebook100 social network dataset loader for graph-based analysis.
+
+    Parameters
+    ----------
+    root : str
+        Root directory where the dataset should be saved
+    name : str
+        Name of the Facebook dataset (must be one of the FB100 universities)
+    transform : callable, optional
+        Function/transform that takes in a Data object and returns a transformed
+        version. Default: None
+    pre_transform : callable, optional
+        Function/transform to be applied to the data object before saving.
+        Default: None
+    pre_filter : callable, optional
+        Function that takes in a Data object and returns a boolean value,
+        indicating whether the data object should be included. Default: None
+
+    Notes
+    -----
+    Dataset Structure:
+
+    - Nodes represent Facebook users
+    - Edges represent friendships
+    - Node features from user metadata
+    - Labels indicate user attributes
+    - Includes train/val/test splits (80/10/10)
+    """
+
     def __init__(self,
                  root,
                  name,
@@ -31,16 +61,80 @@ class FacebookDataset(InMemoryDataset):
         
     @property
     def raw_file_names(self):
+        """
+        Names of required raw files.
+
+        Returns
+        -------
+        list[str]
+            List of required raw file names
+
+        Notes
+        -----
+        Required files:
+
+        - data.mat: MATLAB file containing network data and user metadata
+        """
         return ["data.mat"]
 
     @property
     def processed_file_names(self):
+        """
+        Names of processed data files.
+
+        Returns
+        -------
+        list[str]
+            List of processed file names
+
+        Notes
+        -----
+        Processed files:
+
+        - data.pt: Contains processed PyTorch Geometric data object
+        """
         return ['data.pt']
 
     def download(self):
+        """
+        Download raw data files.
+
+        Notes
+        -----
+        Empty implementation - data should be manually placed in raw directory
+        """
         pass
     
     def load_fb100(self, data_dir, filename, one_hot = True):
+        """
+        Load raw Facebook100 dataset file.
+
+        Parameters
+        ----------
+        data_dir : str
+            Path to the MATLAB file
+        filename : str
+            Name of the dataset (must be one of the FB100 universities)
+        one_hot : bool, optional
+            Whether to convert categorical features to one-hot encoding. Default: True
+
+        Returns
+        -------
+        tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+            Contains:
+
+            - x: Node feature matrix [num_nodes, num_features]
+            - edge_index: Graph connectivity [2, num_edges]
+            - y: Node labels [num_nodes]
+
+        Notes
+        -----
+        - Validates university name
+        - Loads MATLAB file containing network structure
+        - Processes metadata into features
+        - Optionally converts features to one-hot encoding
+        - Aggregates data from all universities for consistent encoding
+        """
         assert filename in ('FB_Penn94', 'FB_Amherst41', 'FB_Cornell5', 'FB_Johns Hopkins55',
                             'FB_Caltech36', 'FB_Brown11', 'FB_Yale4', 'FB_Texas80',
                             'FB_Bingham82', 'FB_Duke14', 'FB_Princeton12', 'FB_WashU32',
@@ -86,6 +180,48 @@ class FacebookDataset(InMemoryDataset):
         return x, edge_index, y
     
     def process(self):
+        """
+        Process raw data into PyTorch Geometric Data format.
+
+        Notes
+        -----
+        Processing Steps:
+        
+        - Load MATLAB data:
+        
+            * Network structure
+            * User metadata
+            * User attributes
+
+        - Convert to PyTorch format:
+
+            * Edge indices from adjacency
+            * One-hot features from metadata
+            * Integer labels from attributes
+
+        - Create Data object with:
+
+            * Edge indices
+            * Node features
+            * Node labels
+            * Train/val/test masks
+
+        - Apply pre-transform if specified
+        - Save processed data
+
+        Data Split:
+        
+        - Training: 80%
+        - Validation: 10%
+        - Testing: 10%
+
+        Features:
+        
+        - One-hot encoding
+        - Metadata processing
+        - Random split generation
+        - Optional pre-transform support
+        """
         path = osp.join(self.raw_dir, '{}.mat'.format(self.name[3:]))
         x, edge_index, y = self.load_fb100(path, self.name)
 

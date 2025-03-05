@@ -14,15 +14,41 @@ from .gnn_base import GNNBase
 
 
 class PairNorm(nn.Module):
+    """
+    Implementation of PairNorm for graph neural networks.
+
+    PairNorm is a normalization layer that helps prevent over-smoothing in deep GNNs
+    by normalizing node features both individually and across the graph.
+
+    Parameters
+    ----------
+    mode : str, optional
+        Normalization mode. Options:
+
+        - 'None': No normalization
+        - 'PN': Original PairNorm
+        - 'PN-SI': Scale-Individually version
+        - 'PN-SCS': Scale-and-Center-Simultaneously version
+        Default: 'PN'
+    scale : float, optional
+        Scaling factor for normalized features. Default: 10
+
+    Notes
+    -----
+    The 'PN-SCS' mode is an extension of the original paper that works well
+    in practice, especially for GCN and GAT architectures.
+    """
+
     def __init__(self, mode='PN', scale=10):
         """
         mode:
-            'None' : No normalization
-            'PN'   : Original version
-            'PN-SI'  : Scale-Individually version
-            'PN-SCS' : Scale-and-Center-Simultaneously version
-            ('SCS'-mode is not in the paper but we found it works well in practice, especially for GCN and GAT.)
-            PairNorm is typically used after each graph convolution operation.
+            
+        - 'None' : No normalization
+        - 'PN'   : Original version
+        - 'PN-SI'  : Scale-Individually version
+        - 'PN-SCS' : Scale-and-Center-Simultaneously version ('SCS'-mode is not in the paper but we found it works well in practice, especially for GCN and GAT.)
+        
+        PairNorm is typically used after each graph convolution operation.
         """
         assert mode in ['None', 'PN', 'PN-SI', 'PN-SCS']
         super(PairNorm, self).__init__()
@@ -30,6 +56,31 @@ class PairNorm(nn.Module):
         self.scale = scale
 
     def forward(self, x):
+        """
+        Apply PairNorm to input features.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input node features of shape [num_nodes, num_features]
+
+        Returns
+        -------
+        torch.Tensor
+            Normalized node features of shape [num_nodes, num_features]
+
+        Notes
+        -----
+        Implements four normalization strategies:
+        
+        - 'None': Returns input unchanged
+        - 'PN': Centers and scales features using mean row norm
+        - 'PN-SI': Centers and scales features individually
+        - 'PN-SCS': Scales individually then centers features
+
+        A small epsilon (1e-6) is added for numerical stability during
+        normalization.
+        """
         if self.mode == 'None':
             return x
         col_mean = x.mean(dim=0)
@@ -49,6 +100,37 @@ class PairNorm(nn.Module):
 
 
 class GraphEncoder(torch.nn.Module):
+    """
+    Multi-layer GraphSAGE encoder with normalization and regularization.
+
+    Parameters
+    ----------
+    dim_in : int
+        Input feature dimension
+    dim_out : int
+        Output feature dimension
+    dim_hidden : int, optional
+        Hidden layer dimension. Default: 64
+    layer_num : int, optional
+        Number of GraphSAGE layers. Default: 2
+    root_weight : bool, optional
+        Whether to add self-loops in GraphSAGE. Default: True
+    norm_mode : str, optional
+        PairNorm mode ('None', 'PN', 'PN-SI', 'PN-SCS'). Default: 'PN-SCS'
+    norm_scale : float, optional
+        Normalization scaling factor. Default: 1
+    log_softmax : bool, optional
+        Whether to apply log_softmax to output. Default: False
+
+    Notes
+    -----
+    Architecture:
+
+    - Multiple GraphSAGE convolution layers
+    - PairNorm after each intermediate layer
+    - ReLU activation and dropout
+    - Optional log_softmax output
+    """
     def __init__(
         self,
         dim_in,
@@ -81,6 +163,36 @@ class GraphEncoder(torch.nn.Module):
             conv.reset_parameters()
 
     def forward(self, x, edge_index):
+        """
+        Forward pass of the GraphEncoder.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Node feature matrix of shape [num_nodes, dim_in]
+        edge_index : torch.Tensor
+            Graph connectivity in COO format of shape [2, num_edges]
+
+        Returns
+        -------
+        torch.Tensor
+            Encoded node features of shape [num_nodes, dim_out]
+
+        Notes
+        -----
+        For intermediate layers:
+
+        - GraphSAGE convolution
+        - PairNorm
+        - ReLU activation
+        - Dropout (p=0.5)
+        
+        Final layer:
+        
+        - GraphSAGE convolution only
+        
+        Optional log_softmax
+        """
         adj_sp = edge_index
         for ind, conv in enumerate(self.convs):
             if ind == len(self.convs) - 1:
@@ -98,6 +210,39 @@ class GraphEncoder(torch.nn.Module):
 
 
 class Decoder(nn.Module):
+    """
+    Multi-layer MLP decoder with optional normalization and various activation functions.
+
+    Parameters
+    ----------
+    dim_in : int
+        Input feature dimension
+    dim_hidden : int
+        Hidden layer dimension
+    dim_out : int
+        Output feature dimension
+    num_layer : int, optional
+        Number of linear layers. Default: 2
+    use_norm : bool, optional
+        Whether to use PairNorm normalization. Default: False
+    dropout : float, optional
+        Dropout rate. Default: 0.5
+    act_fn : str, optional
+        Activation function type ('relu', 'leakyrelu', 'tanh', 'sigmoid'). Default: 'relu'
+    norm_mode : str, optional
+        PairNorm mode if use_norm is True. Default: 'PN'
+    norm_scale : float, optional
+        Normalization scaling factor. Default: 1.
+
+    Notes
+    -----
+    Architecture:
+
+    - Multiple linear layers with configurable width
+    - Optional PairNorm after each intermediate layer
+    - Configurable activation functions
+    - Bias terms included in linear layers
+    """
     def __init__(
         self,
         dim_in,
@@ -150,6 +295,31 @@ class Decoder(nn.Module):
             l.reset_parameters()
     
     def forward(self, z):
+        """
+        Forward pass of the decoder.
+
+        Parameters
+        ----------
+        z : torch.Tensor
+            Input features of shape [batch_size, dim_in]
+
+        Returns
+        -------
+        torch.Tensor
+            Reconstructed features of shape [batch_size, dim_out]
+
+        Notes
+        -----
+        Process for each intermediate layer:
+
+        - Linear transformation
+        - Optional PairNorm (if use_norm=True)
+        - Activation function
+        
+        Final layer:
+        
+        - Only linear transformation
+        """
         x = z
         for idx in range(self.num_layer - 1):
             x = self.layers[idx](x)
@@ -162,6 +332,41 @@ class Decoder(nn.Module):
 
 
 class Discriminator(nn.Module):
+    """
+    Multi-layer discriminator network with configurable normalization and activation.
+
+    Parameters
+    ----------
+    dim_in : int
+        Input feature dimension
+    dim_hidden : int
+        Hidden layer dimension
+    num_layer : int, optional
+        Number of linear layers. Default: 2
+    use_bn : bool, optional
+        Whether to use batch normalization. Default: False
+    use_pair_norm : bool, optional
+        Whether to use PairNorm normalization. Default: False
+    dropout : float, optional
+        Dropout rate. Default: 0.5
+    act_fn : str, optional
+        Activation function type ('relu', 'leakyrelu', 'tanh', 'sigmoid'). Default: 'leakyrelu'
+    sigmoid_output : bool, optional
+        Whether to apply sigmoid to final output. Default: True
+    norm_mode : str, optional
+        PairNorm mode if use_pair_norm is True. Default: 'PN'
+    norm_scale : float, optional
+        Normalization scaling factor. Default: 1.
+
+    Notes
+    -----
+    Architecture:
+
+    - Multiple linear layers with configurable width
+    - Optional BatchNorm or PairNorm after each intermediate layer
+    - Configurable activation functions
+    - Optional sigmoid output for binary classification
+    """
     def __init__(
         self,
         dim_in,
@@ -224,6 +429,39 @@ class Discriminator(nn.Module):
                 bn.reset_parameters()
 
     def forward(self, z):
+        """
+        Forward pass of the discriminator.
+
+        Parameters
+        ----------
+        z : torch.Tensor
+            Input features of shape [batch_size, dim_in]
+
+        Returns
+        -------
+        torch.Tensor
+            Discrimination probabilities of shape [batch_size, 1]
+
+            - If sigmoid_output=True: Range [0,1]
+            - If sigmoid_output=False: Unbounded logits
+
+        Notes
+        -----
+        Process for each intermediate layer:
+
+        - Linear transformation
+        - Normalization (if enabled):
+
+            * BatchNorm (if use_bn=True)
+            * PairNorm (if use_pair_norm=True)
+
+        - Activation function
+        
+        Final layer:
+        
+        - Linear transformation
+        - Optional sigmoid activation
+        """
         x = z
         for idx in range(self.num_layer-1):
             x = self.layers[idx](x)
@@ -239,6 +477,29 @@ class Discriminator(nn.Module):
 
 
 class Similar(torch.nn.Module):
+    """
+    Similarity computation module with optional classification capability.
+
+    Parameters
+    ----------
+    in_channels : int
+        Input feature dimension
+    num_clf_classes : int
+        Number of classification classes
+    dropout : float, optional
+        Dropout rate. Default: 0.6
+    use_clf : bool, optional
+        Whether to include classification branch. Default: True
+
+    Notes
+    -----
+    Architecture components:
+
+    - Bias attention network (128->64->128)
+    - Feature transformation network with BatchNorm
+    - Optional classification layer
+    - Cosine similarity computation
+    """
     def __init__(self, in_channels, num_clf_classes, dropout=0.6, use_clf=True):
         super(Similar, self).__init__()
         self.biasatt = nn.Sequential(
@@ -276,6 +537,25 @@ class Similar(torch.nn.Module):
                 m.reset_parameters()
     
     def similarity_cross_domain(self, x_src, x_tar, idx1, idx2):
+        """
+        Compute similarity between source and target domain nodes.
+
+        Parameters
+        ----------
+        x_src : torch.Tensor
+            Source domain features
+        x_tar : torch.Tensor
+            Target domain features
+        idx1 : torch.Tensor
+            Source node indices
+        idx2 : torch.Tensor
+            Target node indices
+
+        Returns
+        -------
+        torch.Tensor
+            Similarity scores between selected node pairs
+        """
         z_src = self.lin_self(x_src)
         z_tar = self.lin_self(x_tar)
         alpha = torch.nn.CosineSimilarity(dim=-1)((z_src[idx1] + self.biasatt(z_src[idx1])).unsqueeze(1), z_tar[idx2] + self.biasatt(z_tar[idx2]))
@@ -284,6 +564,30 @@ class Similar(torch.nn.Module):
         return alpha
     
     def similarity_cross_domain_batch(self, x_src, x_tar, idx1, idx2):
+        """
+        Compute cross-domain similarity scores in batches.
+
+        Parameters
+        ----------
+        x_src : torch.Tensor
+            Source domain features
+        x_tar : torch.Tensor
+            Target domain features
+        idx1 : torch.Tensor
+            Source node indices
+        idx2 : torch.Tensor
+            Target node indices
+
+        Returns
+        -------
+        torch.Tensor
+            Batched similarity scores between node pairs
+
+        Notes
+        -----
+        - Processes in batches of 100 for memory efficiency
+        - Uses attention-enhanced cosine similarity
+        """
         z_src = self.lin_self(x_src)
         z_tar = self.lin_self(x_tar)
         batch_size = 100
@@ -302,6 +606,29 @@ class Similar(torch.nn.Module):
         return alpha
 
     def forward_cross_domain(self, x_src, x_tar, idx1, idx2):
+        """
+        Forward pass for cross-domain similarity computation.
+
+        Parameters
+        ----------
+        x_src : torch.Tensor
+            Source domain features
+        x_tar : torch.Tensor
+            Target domain features
+        idx1 : torch.Tensor
+            Source node indices
+        idx2 : torch.Tensor
+            Target node indices
+
+        Returns
+        -------
+        tuple
+            Contains:
+
+            - torch.Tensor: Similarity scores
+            - torch.Tensor: Source classification log probabilities (if use_clf=True)
+            - torch.Tensor: Target classification log probabilities (if use_clf=True)
+        """
         z_src, z_tar = x_src, x_tar
         log_probs_clf_src = log_probs_clf_tar = None
 
@@ -316,6 +643,23 @@ class Similar(torch.nn.Module):
         return alpha.unsqueeze(-1), log_probs_clf_src, log_probs_clf_tar
 
     def similarity(self, x, idx1, idx2):
+        """
+        Compute similarity between nodes within same domain.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Node features
+        idx1 : torch.Tensor
+            First set of node indices
+        idx2 : torch.Tensor
+            Second set of node indices
+
+        Returns
+        -------
+        torch.Tensor
+            Similarity scores between selected node pairs
+        """
         z = self.lin_self(x)
         alpha = torch.nn.CosineSimilarity(dim=1)(z[idx1] + self.biasatt(z[idx1]), z[idx2] + self.biasatt(z[idx2]))
         alpha = torch.sigmoid(alpha)
@@ -323,6 +667,26 @@ class Similar(torch.nn.Module):
         return alpha
 
     def forward(self, x, idx1, idx2):
+        """
+        Forward pass for within-domain similarity computation.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Node features
+        idx1 : torch.Tensor
+            First set of node indices
+        idx2 : torch.Tensor
+            Second set of node indices
+
+        Returns
+        -------
+        tuple
+            Contains:
+            
+            - torch.Tensor: Similarity scores [batch_size, 1]
+            - torch.Tensor: Classification log probabilities (if use_clf=True)
+        """
         z = x
         log_probs_clf = None
 
@@ -336,6 +700,30 @@ class Similar(torch.nn.Module):
 
 
 class SourceLearner(torch.nn.Module):
+    """
+    Source domain learning module combining graph encoding and similarity matching.
+
+    Parameters
+    ----------
+    data : torch_geometric.data.Data
+        Source domain graph data
+    dim_hidden : int, optional
+        Hidden dimension size. Default: 64
+    norm_mode : str, optional
+        Normalization mode for GraphEncoder. Default: 'None'
+    norm_scale : float, optional
+        Normalization scale factor. Default: 1
+    use_clf : bool, optional
+        Whether to use classification. Default: True
+
+    Notes
+    -----
+    Architecture components:
+
+    - GraphEncoder backbone for feature extraction
+    - Similar module for similarity computation
+    - Optional classification capability
+    """
     def __init__(
         self,
         data,
@@ -361,6 +749,29 @@ class SourceLearner(torch.nn.Module):
         self.sim_net.reset_parameters()
     
     def forward(self, data, idx1, idx2, return_representation=False):
+        """
+        Forward pass of the source learner.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data
+        idx1 : torch.Tensor
+            First set of node indices
+        idx2 : torch.Tensor
+            Second set of node indices
+        return_representation : bool, optional
+            Whether to return encoded features. Default: False
+
+        Returns
+        -------
+        tuple
+            Contains:
+
+            - torch.Tensor: Pair similarity probabilities
+            - torch.Tensor: Classification logits
+            - torch.Tensor: Encoded features (if return_representation=True)
+        """
         h = self.backbone(data.x, data.edge_index)
         probs_pair, logits_clf = self.sim_net(h, idx1, idx2)
 
@@ -371,7 +782,30 @@ class SourceLearner(torch.nn.Module):
 
 
 class TargetLearnerAE(torch.nn.Module):
-    
+    """
+    Target domain learner with autoencoder architecture.
+
+    Parameters
+    ----------
+    data : torch_geometric.data.Data
+        Target domain graph data
+    dim_eq_trans : int, optional
+        Dimension for equivalent transformation. Default: 128
+    dim_hidden : int, optional
+        Hidden dimension size. Default: 64
+    norm_mode : str, optional
+        Normalization mode. Default: 'None'
+    norm_scale : float, optional
+        Normalization scale factor. Default: 1
+
+    Notes
+    -----
+    Architecture components:
+
+    - Equivalent transformation layer
+    - GraphEncoder for feature encoding
+    - Decoder for feature reconstruction
+    """
     def __init__(self, data, dim_eq_trans=128, dim_hidden=64, norm_mode='None', norm_scale=1):
         super(TargetLearnerAE, self).__init__()
         self.dim_in = data.num_features
@@ -398,18 +832,63 @@ class TargetLearnerAE(torch.nn.Module):
         self.decoder.reset_parameters()
     
     def encode(self, data):
+        """
+        Encode input graph data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - torch.Tensor: Encoded features
+            - torch.Tensor: Transformed input features
+        """
         h0 = self.equavilent_trans_layer(data.x)
         z = self.encoder(h0, data.edge_index)
 
         return z, h0
     
     def decode(self, z):
+        """
+        Decode latent features.
+
+        Parameters
+        ----------
+        z : torch.Tensor
+            Encoded features
+
+        Returns
+        -------
+        torch.Tensor
+            Reconstructed features in tanh-normalized space
+        """
         recons = self.decoder(z)
         recons = torch.tanh(recons)
 
         return recons
     
     def forward(self, data):
+        """
+        Forward pass through the autoencoder.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data
+
+        Returns
+        -------
+        tuple
+            Contains:
+            
+            - torch.Tensor: Transformed input features
+            - torch.Tensor: Encoded features
+            - torch.Tensor: Reconstructed features
+        """
         z, h0 = self.encode(data)
         recons = self.decode(z)
 
@@ -417,6 +896,34 @@ class TargetLearnerAE(torch.nn.Module):
 
 
 class AdversarialLearner(nn.Module):
+    """
+    Adversarial learning framework combining source, target, and discriminator networks.
+
+    Parameters
+    ----------
+    data_src : torch_geometric.data.Data
+        Source domain graph data
+    data_tar : torch_geometric.data.Data
+        Target domain graph data
+    dim_hidden : int, optional
+        Hidden dimension size. Default: 64
+    num_layer : int, optional
+        Number of layers in networks. Default: 2
+    source_clf : bool, optional
+        Whether to use source classification. Default: True
+    norm_mode : str, optional
+        Normalization mode ('PN', etc.). Default: 'PN'
+    norm_scale : float, optional
+        Normalization scale factor. Default: 1.
+
+    Notes
+    -----
+    Architecture components:
+
+    - SourceLearner for source domain processing
+    - TargetLearnerAE for target domain processing with reconstruction
+    - Discriminator for adversarial training
+    """
     def __init__(
         self,
         data_src,
@@ -461,6 +968,34 @@ class AdversarialLearner(nn.Module):
         )
 
     def get_probs_within_domain(self, data, idx1, idx2, domain='target'):
+        """
+        Compute similarity probabilities within a single domain.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data
+        idx1 : torch.Tensor
+            First set of node indices
+        idx2 : torch.Tensor
+            Second set of node indices
+        domain : str, optional
+            Domain type ('source' or 'target'). Default: 'target'
+
+        Returns
+        -------
+        tuple
+            Contains:
+
+            - torch.Tensor: Pair similarity probabilities
+            - torch.Tensor: Classification probabilities (exp of log_probs)
+
+        Notes
+        -----
+        - For source domain: Uses source learner directly
+        - For target domain: Encodes first, then uses source similarity network
+        - Returns zero probabilities if source_clf is False
+        """
         if domain == 'source':
             probs_pair, log_probs_clf = self.source_learner(data, idx1, idx2, return_representation=False)
         elif domain == 'target':
@@ -472,6 +1007,40 @@ class AdversarialLearner(nn.Module):
         return probs_pair, log_probs_clf.exp()
 
     def get_probs_cross_domain(self, data_src, data_tar, idx1, idx2, return_representation=False):
+        """
+        Compute similarity probabilities between source and target domains.
+
+        Parameters
+        ----------
+        data_src : torch_geometric.data.Data
+            Source domain graph data
+        data_tar : torch_geometric.data.Data
+            Target domain graph data
+        idx1 : torch.Tensor
+            Source domain indices
+        idx2 : torch.Tensor
+            Target domain indices
+        return_representation : bool, optional
+            Whether to return encoded features. Default: False
+
+        Returns
+        -------
+        tuple
+            Contains:
+            
+            - torch.Tensor: Cross-domain pair probabilities
+            - torch.Tensor: Source classification probabilities
+            - torch.Tensor: Target classification probabilities
+            - torch.Tensor: Source encoded features (if return_representation=True)
+            - torch.Tensor: Target encoded features (if return_representation=True)
+
+        Notes
+        -----
+        - Encodes both domains separately
+        - Computes cross-domain similarities
+        - Returns detached representations if requested
+        - Returns zero probabilities if source_clf is False
+        """
         z_src = self.source_learner.backbone(data_src.x, data_src.edge_index)
         z_tar, _ = self.target_learner.encode(data_tar)
         probs_pair, log_probs_clf_src, log_probs_clf_tar = self.source_learner.sim_net.forward_cross_domain(z_src, z_tar, idx1, idx2)
@@ -487,6 +1056,23 @@ class AdversarialLearner(nn.Module):
 
 
 class PairEnumerator:
+    """
+    Node pair sampling and enumeration utility for graph data.
+
+    Parameters
+    ----------
+    data : torch_geometric.data.Data
+        Input graph data
+    mode : str, optional
+        Sampling mode ('train', 'val', 'test', 'all'). Default: 'train'
+
+    Notes
+    -----
+    - Organizes nodes by class for stratified sampling
+    - Supports different data splits (train/val/test)
+    - Handles missing labels (-1)
+    - Creates class-wise node buckets for efficient sampling
+    """
     def __init__(self, data, mode='train'):
         super(PairEnumerator, self).__init__()
         self.num_classes = data.y.max().item() + 1 # y start from 0, -1 denotes missing
@@ -506,7 +1092,34 @@ class PairEnumerator:
             else:
                 raise NotImplementedError('Not Implemented Mode:{}'.format(mode))
     
-    def balanced_sampling(self, max_class_num=2, sample_size=40000, shuffle=True):        
+    def balanced_sampling(self, max_class_num=2, sample_size=40000, shuffle=True):
+        """
+        Generate balanced node pairs across classes.
+
+        Parameters
+        ----------
+        max_class_num : int, optional
+            Maximum number of classes to sample from. Default: 2
+        sample_size : int, optional
+            Total number of pairs to generate. Default: 40000
+        shuffle : bool, optional
+            Whether to shuffle the pairs. Default: True
+
+        Returns
+        -------
+        tuple
+            Contains:
+
+            - torch.Tensor: First nodes in pairs
+            - torch.Tensor: Second nodes in pairs
+
+        Notes
+        -----
+        - Generates both same-class and cross-class pairs
+        - Same-class pairs: 50% of sample_size
+        - Cross-class pairs: 50% distributed across class combinations
+        - Sampling with replacement within classes
+        """        
         if self.num_classes > max_class_num:
             selected_classes = np.random.choice(torch.arange(self.num_classes), replace=False, size=max_class_num) # sampling classes without putback
         else:
@@ -540,16 +1153,38 @@ class PairEnumerator:
         return sample_idxs_1, sample_idxs_2
     
     def pair_enumeration(self, x1, x2):
-        '''
-            input:  [B,D]
-            return: [B*B,D]
-            input  [[a],
-                    [b]]
-            return [[a,a],
-                    [b,a],
-                    [a,b],
-                    [b,b]]
-        '''
+        """
+        Generate all possible pairs between two sets of nodes.
+
+        Parameters
+        ----------
+        x1 : torch.Tensor
+            First set of nodes, shape [B,D]
+        x2 : torch.Tensor
+            Second set of nodes, shape [B,D]
+
+        Returns
+        -------
+        torch.Tensor
+            Concatenated pairs, shape [B*B,2D]
+
+        Examples
+        --------
+        Input:
+            x1 = [[a],
+                  [b]]
+        Output:
+            [[a,a],
+             [b,a],
+             [a,b],
+             [b,b]]
+
+        Notes
+        -----
+        - Ensures inputs are 2-dimensional tensors
+        - Creates cartesian product of input sets
+        - Memory-efficient implementation using repeat operations
+        """
         assert x1.ndimension() == 2 and x2.ndimension() == 2, 'Input dimension must be 2'
         # [a,b,c,a,b,c,a,b,c]
         # [a,a,a,b,b,b,c,c,c]
@@ -559,6 +1194,33 @@ class PairEnumerator:
         return torch.cat((x1_, x2_), dim=1)
 
     def sampling(self, max_class_num=2, sample_size=40000, shuffle=True):
+        """
+        Sample node pairs using square root sampling strategy.
+
+        Parameters
+        ----------
+        max_class_num : int, optional
+            Maximum number of classes to sample from. Default: 2
+        sample_size : int, optional
+            Total number of pairs to generate. Default: 40000
+        shuffle : bool, optional
+            Whether to shuffle the pairs. Default: True
+
+        Returns
+        -------
+        tuple
+            Contains:
+            
+            - torch.Tensor: First nodes in pairs
+            - torch.Tensor: Second nodes in pairs
+
+        Notes
+        -----
+        - Uses sqrt(sample_size) nodes per class
+        - Generates pairs through enumeration
+        - Sampling with replacement within classes
+        - Optional shuffling of final pairs
+        """
         if self.num_classes > max_class_num:
             selected_classes = np.random.choice(torch.arange(self.num_classes), replace=False, size=max_class_num) # sampling classes without putback
         else:
@@ -944,6 +1606,50 @@ class BridgedGraph(torch.nn.Module):
 
 
 class KBLBase(torch.nn.Module):
+    """
+    Base class for KBL.
+
+    Parameters
+    ----------
+    data_src : torch_geometric.data.Data
+        Source domain graph data
+    data_tar : torch_geometric.data.Data
+        Target domain graph data
+    device : torch.device
+        Device to use for computation
+    k_cross : int, optional
+        Number of cross-domain edges per node. Default: 20
+    k_within : int, optional
+        Number of within-domain edges per node. Default: 6
+    epsilon : float, optional
+        Similarity threshold. Default: 0.5
+    bridge_batch_size : int, optional
+        Batch size for bridge construction. Default: 1000
+    dim_hidden : int, optional
+        Hidden dimension size. Default: 64
+    num_layer : int, optional
+        Number of GNN layers. Default: 2
+    num_epoch : int, optional
+        Number of training epochs. Default: 200
+    lr : float, optional
+        Learning rate. Default: 0.001
+    weight_decay : float, optional
+        Weight decay for optimization. Default: 5e-3
+    source_clf : bool, optional
+        Whether to use source classifier. Default: True
+    norm_mode : str, optional
+        Normalization mode. Default: 'PN'
+    norm_scale : float, optional
+        Normalization scale factor. Default: 1.
+
+    Notes
+    -----
+    Architecture components:
+
+    - BridgedGraph for domain connection
+    - GNNBase for node classification
+    - Memory-efficient batch processing
+    """
     def __init__(
         self,
         data_src,
@@ -993,12 +1699,53 @@ class KBLBase(torch.nn.Module):
         ).to(device)
         
     def get_bridged_graph(self):
+        """
+        Generate and return a bridged graph connecting source and target domains.
+
+        Returns
+        -------
+        torch_geometric.data.Data
+            Merged graph containing:
+
+            - Combined node features
+            - Original edges from both domains
+            - Cross-domain bridge edges
+            - Within-domain enhancement edges
+            - Updated masks for splits
+
+        Notes
+        -----
+        - Trains the bridge model using adversarial learning
+        - Generates bridged graph with specified batch size
+        """
         self.bridged_graph.fit()
         data_merge = self.bridged_graph.gen_bridged_graph(batch_size=self.bridge_batch_size)
 
         return data_merge
     
     def forward(self, data):
+        """
+        Forward pass through the KBL model.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data containing:
+            
+            - x: Node features
+            - edge_index: Graph connectivity
+
+        Returns
+        -------
+        torch.Tensor
+            Log probabilities of node classifications
+            Shape: [num_nodes, num_classes]
+
+        Notes
+        -----
+        Processes input through GNN layers for node classification
+        using the enhanced graph structure
+        """
         log_probs_xs = self.gnn(data.x, data.edge_index)
         
         return log_probs_xs

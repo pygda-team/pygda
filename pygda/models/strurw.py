@@ -139,6 +139,26 @@ class StruRW(BaseGDA):
         self.pseudo=pseudo
 
     def init_model(self, **kwargs):
+        """
+        Initialize the StruRW model.
+
+        Parameters
+        ----------
+        **kwargs
+            Additional parameters for the base models.
+
+        Returns
+        -------
+        torch.nn.Module
+            Either MixupBase or ReweightGNN model based on the mode.
+
+        Notes
+        -----
+        Initializes different model architectures based on mode:
+
+        - 'mixup': Returns MixupBase model
+        - others: Returns ReweightGNN model with specified backbone
+        """
 
         if self.mode == 'mixup':
             return MixupBase(
@@ -167,6 +187,39 @@ class StruRW(BaseGDA):
                 ).to(self.device)
 
     def forward_model(self, source_data, target_data, alpha, epoch):
+        """
+        Forward pass of the model for non-mixup modes.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+        alpha : float
+            Gradient reversal scaling parameter.
+        epoch : int
+            Current training epoch.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - loss : torch.Tensor
+                Combined loss based on training mode.
+            - source_logits : torch.Tensor
+                Model predictions for source domain.
+            - target_logits : torch.Tensor
+                Model predictions for target domain.
+
+        Notes
+        -----
+        Implements different training modes:
+
+        - 'erm': Standard cross-entropy loss
+        - 'adv': Adversarial training with domain discriminator
+        - 'mmd': Maximum Mean Discrepancy loss
+        """
         target_feat, target_logits = self.gnn.forward(target_data, target_data.x)
         target_prob = F.softmax(target_logits, dim=1)
         target_pred = torch.max(target_prob, dim=1)[1]
@@ -204,6 +257,34 @@ class StruRW(BaseGDA):
         return loss, source_logits, target_logits
 
     def forward_model_mixup(self, source_data, target_data, epoch):
+        """
+        Forward pass of the model for mixup mode.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+        epoch : int
+            Current training epoch.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - loss : torch.Tensor
+                Cross-entropy loss on mixed data.
+            - source_logits : torch.Tensor
+                Model predictions for source domain.
+            - target_logits : torch.Tensor
+                Model predictions for target domain.
+
+        Notes
+        -----
+        Implements mixup training with beta distribution sampling
+        and edge reweighting if enabled.
+        """
         target_feat = self.gnn.feat_bottleneck(
             target_data.x,
             target_data.edge_index,
@@ -242,6 +323,45 @@ class StruRW(BaseGDA):
         return loss, source_logits, target_logits
 
     def fit(self, source_data, target_data):
+        """
+        Train the StruRW model on source and target domain data.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Notes
+        -----
+        Training process includes:
+
+        Edge weight initialization:
+           
+        - Sets default edge weights to 1 if not provided
+        - Handles both source and target graphs
+
+        Batch processing setup:
+           
+        - Full batch (batch_size=0): Uses entire graph
+        - Mini-batch: Creates neighbor loaders with specified size
+
+        Model initialization:
+           
+        - Sets up main model (GNN)
+        - For 'adv' mode: Initializes domain discriminator
+        - Configures optimizer based on training mode
+
+        Training loop:
+           
+        - Updates edge weights periodically if reweighting is enabled
+        - Computes losses based on selected mode (erm/mixup/mmd/adv)
+        - Tracks and logs training metrics
+
+        The method adapts its behavior based on the selected training mode
+        and handles both full-batch and mini-batch training scenarios.
+        """
         if source_data.edge_weight is None:
             source_data.edge_weight = torch.ones(source_data.edge_index.shape[1]).to(self.device)
         if target_data.edge_weight is None:
@@ -324,6 +444,23 @@ class StruRW(BaseGDA):
                    train=True)
     
     def cal_reweight(self, source_data, target_data, target_pred):
+        """
+        Calculate edge weights for source graph based on structural alignment.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+        target_pred : torch.Tensor
+            Predicted labels for target domain.
+
+        Notes
+        -----
+        Updates source_data.edge_weight based on the ratio of edge
+        probabilities between source and target domains.
+        """
         print('edge reweight...')
         src_edge_prob, tgt_edge_prob, tgt_true_edge_prob = self.cal_edge_prob_sep(source_data, target_data, target_pred)
 
@@ -350,6 +487,29 @@ class StruRW(BaseGDA):
         source_data.edge_weight = edge_weight
 
     def cal_edge_prob_sep(self, src_graph, tgt_graph, tgt_pred):
+        """
+        Calculate edge probabilities for source and target graphs.
+
+        Parameters
+        ----------
+        src_graph : torch_geometric.data.Data
+            Source domain graph.
+        tgt_graph : torch_geometric.data.Data
+            Target domain graph.
+        tgt_pred : torch.Tensor
+            Predicted labels for target domain.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - src_edge_prob : torch.Tensor
+                Edge probabilities in source graph.
+            - tgt_edge_prob : torch.Tensor
+                Edge probabilities in target graph (predicted).
+            - tgt_true_edge_prob : torch.Tensor
+                Edge probabilities in target graph (true).
+        """
         src_adj = to_dense_adj(src_graph.edge_index, max_num_nodes=src_graph.x.shape[0])[0].cpu().numpy()
         tgt_adj = to_dense_adj(tgt_graph.edge_index, max_num_nodes=tgt_graph.x.shape[0])[0].cpu().numpy()
     
@@ -388,6 +548,25 @@ class StruRW(BaseGDA):
         return src_edge_prob, tgt_edge_prob, tgt_true_edge_prob
     
     def cal_str_dif_rel(self, pred_mtx, true_mtx):
+        """
+        Calculate absolute and relative structural differences.
+
+        Parameters
+        ----------
+        pred_mtx : torch.Tensor
+            Predicted structural matrix.
+        true_mtx : torch.Tensor
+            True structural matrix.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - abs_diff : torch.Tensor
+                Average absolute difference.
+            - rel_diff : torch.Tensor
+                Average relative difference.
+        """
         cls1_diff = torch.abs(pred_mtx - true_mtx)
         cls0_diff = torch.abs((1 - pred_mtx) - (1 - true_mtx))
         abs_diff = 0.5 * cls0_diff + 0.5 * cls1_diff
@@ -403,6 +582,21 @@ class StruRW(BaseGDA):
         return torch.sum(abs_diff) / num, torch.sum(rel_diff) / num
     
     def cal_str_diff_ratio(self, pred_mtx, true_mtx):
+        """
+        Calculate structural difference ratio.
+
+        Parameters
+        ----------
+        pred_mtx : torch.Tensor
+            Predicted structural matrix.
+        true_mtx : torch.Tensor
+            True structural matrix.
+
+        Returns
+        -------
+        torch.Tensor
+            Ratio of structural differences excluding diagonal elements.
+        """
         intra_prob_pred = torch.diagonal(pred_mtx, 0).repeat_interleave(pred_mtx.size(1)).view(-1, pred_mtx.size(1))
         intra_prob_true = torch.diagonal(true_mtx, 0).repeat_interleave(true_mtx.size(1)).view(-1, true_mtx.size(1))
         pred_ratio = torch.div(pred_mtx, intra_prob_pred)
@@ -420,6 +614,36 @@ class StruRW(BaseGDA):
         return (torch.sum(ratio_diff) - torch.sum(torch.diagonal(ratio_diff))) / num
 
     def calculate_str_diff(self, src_edge_prob, tgt_edge_prob, tgt_true_edge_prob):
+        """
+        Calculate multiple structural difference metrics between source and target graphs.
+
+        Parameters
+        ----------
+        src_edge_prob : torch.Tensor
+            Edge probability matrix for source graph.
+        tgt_edge_prob : torch.Tensor
+            Edge probability matrix for target graph (predicted).
+        tgt_true_edge_prob : torch.Tensor
+            Edge probability matrix for target graph (true labels).
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - list : List of structural differences
+                [src_tgt_diff_abs, src_tgt_diff_rel, ratio_diff]
+            - tgt_diff_abs : torch.Tensor
+                Absolute difference between predicted and true target structure.
+
+        Notes
+        -----
+        Computes four types of structural differences:
+
+        1. Target prediction vs. true target (absolute and relative)
+        2. Target prediction vs. source (absolute and relative)
+        3. Ratio-based structural difference
+        4. Log-based structural difference
+        """
         tgt_diff_abs, tgt_diff_rel = self.cal_str_dif_rel(tgt_edge_prob, tgt_true_edge_prob)
         src_tgt_diff_abs, src_tgt_diff_rel = self.cal_str_dif_rel(tgt_edge_prob, src_edge_prob)
         ratio_diff = self.cal_str_diff_ratio(tgt_edge_prob, src_edge_prob)
@@ -428,9 +652,42 @@ class StruRW(BaseGDA):
         return [src_tgt_diff_abs, src_tgt_diff_rel, ratio_diff], tgt_diff_abs 
     
     def process_graph(self, data):
+        """
+        Process the input graph data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data to be processed.
+
+        Notes
+        -----
+        Placeholder method for graph preprocessing.
+        """
         pass
 
     def predict(self, data):
+        """
+        Make predictions on given data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - logits : torch.Tensor
+                Model predictions.
+            - labels : torch.Tensor
+                True labels.
+
+        Notes
+        -----
+        Handles both mixup and standard prediction modes.
+        """
         self.gnn.eval()
 
         with torch.no_grad():
@@ -443,6 +700,23 @@ class StruRW(BaseGDA):
         return logits, data.y
 
     def shuffle_data(self, data):
+        """
+        Shuffle node indices in the graph.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - data : torch_geometric.data.Data
+                Graph with shuffled node indices.
+            - id_new_value_old : numpy.ndarray
+                Mapping from new to old indices.
+        """
         data = copy.deepcopy(data).to(self.device)
         id_new_value_old = np.arange(data.x.shape[0])
         idx = np.arange(data.x.shape[0])
@@ -454,6 +728,21 @@ class StruRW(BaseGDA):
         return data, id_new_value_old
 
     def id_node(self, data, id_new_value_old):
+        """
+        Update graph structure based on new node indices.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+        id_new_value_old : numpy.ndarray
+            Mapping from new to old indices.
+
+        Returns
+        -------
+        torch_geometric.data.Data
+            Graph with updated node indices and edge connections.
+        """
         data = copy.deepcopy(data).to(self.device)
         data.x = None
         data.y = data.y[id_new_value_old]

@@ -9,14 +9,70 @@ def logger(epoch=0,
            verbose=0,
            train=True):
     """
-    Logger.
+    Print formatted training/testing progress information.
 
     Parameters
     ----------
     epoch : int, optional
-        The current epoch.
-    loss : float, optional
-        The current epoch loss value.
+        Current training epoch. Default: 0
+    loss : float or tuple, optional
+        Loss value(s) for current epoch. If tuple, contains inner and outer losses.
+        Default: 0
+    source_train_acc : float, optional
+        Source domain training accuracy. Default: None
+    source_val_acc : float, optional
+        Source domain validation accuracy. Default: None
+    target : torch.Tensor, optional
+        Target domain predictions/labels. Default: None
+    time : float, optional
+        Time taken for current epoch. Default: None
+    verbose : int, optional
+        Verbosity level controlling output detail:
+
+        - 0: No output
+        - 1: Basic loss information
+        - 2: Add accuracy metrics
+        - 3: Add detailed metrics (recall, precision, etc.)
+
+        Default: 0
+    train : bool, optional
+        Whether in training or testing mode. Default: True
+
+    Notes
+    -----
+    Output Levels:
+
+    - Basic Output (verbose=1):
+       
+       * Epoch number (training) or "Test" (testing)
+       * Loss values (single or inner/outer)
+
+    - Extended Output (verbose=2):
+       
+       * Basic output
+       * Source domain accuracy
+       * Target domain accuracy
+       * Timing information
+
+    - Detailed Output (verbose=3):
+       
+       * Extended output
+       * Recall at k
+       * Precision at k
+       * Average precision
+       * F1 score
+       * Contamination metrics
+
+    Features:
+    
+    - Multi-level verbosity
+    - Flexible metric display
+    - Progress tracking
+    - Performance monitoring
+
+    Format:
+
+    - Epoch XXXX: Loss X.XXXX | Source Acc X.XXXX | Target Acc X.XXXX | Metrics ... | Time X.XX
     """
     if verbose > 0:
         if train:

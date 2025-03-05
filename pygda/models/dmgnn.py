@@ -105,6 +105,29 @@ class DMGNN(BaseGDA):
         self.step=step
 
     def init_model(self, **kwargs):
+        """
+        Initialize the DMGNN base model.
+
+        Parameters
+        ----------
+        **kwargs
+            Additional parameters for model initialization.
+
+        Returns
+        -------
+        ACDNEBase
+            Initialized model with specified architecture parameters.
+
+        Notes
+        -----
+        Configures a two-layer network with:
+
+        - Input dimension handling
+        - Hidden layer configuration
+        - Embedding dimension for adversarial learning
+        - Dropout regularization
+        - Batch processing settings
+        """
 
         return ACDNEBase(
             n_input=self.in_dim,
@@ -117,9 +140,83 @@ class DMGNN(BaseGDA):
         ).to(self.device)
 
     def forward_model(self, **kwargs):
+        """
+        Forward pass placeholder.
+
+        Parameters
+        ----------
+        **kwargs
+            Arbitrary keyword arguments.
+
+        Notes
+        -----
+        Main forward logic is implemented in fit method
+        due to complex batch processing requirements.
+        """
         pass
 
     def fit(self, source_data, target_data):
+        """
+        Train the DMGNN model on source and target domain data.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source domain graph data.
+        target_data : torch_geometric.data.Data
+            Target domain graph data.
+
+        Notes
+        -----
+        Training process consists of several key components:
+
+        Data Preprocessing
+
+        - Computes PPMI matrices for both domains
+        - Generates neighborhood-aware features
+        - Prepares one-hot encoded labels
+        - Concatenates direct and neighborhood features
+
+        Model Setup
+
+        - Initializes DMGNN model
+        - Configures Adam optimizer
+        - Sets up classification and domain loss functions
+
+        Training Loop
+
+        - Generates balanced source/target batches
+        - Updates domain adaptation parameter
+        - Computes multiple loss components:
+            
+            * Classification loss on labeled data
+            * Domain adversarial loss
+            * Network proximity loss
+
+        - Enhances predictions with neighborhood information
+        - Tracks and logs training progress
+
+        Batch Processing
+
+        - Handles source and target domains separately
+        - Maintains balanced sampling
+        - Applies PPMI-based structural learning
+        - Implements dynamic batch generation
+
+        Loss Computation
+
+        - Classification loss on source domain
+        - Domain adaptation through adversarial training
+        - Neighborhood proximity preservation
+        - Combined loss optimization
+
+        Monitoring
+
+        - Tracks epoch-wise loss
+        - Computes micro-F1 score
+        - Logs training progress
+        - Measures computation time
+        """
         self.ppmi_s, x_n_s = self.process_graph(source_data)
         self.ppmi_t, x_n_t = self.process_graph(target_data)
         x_s = source_data.x.detach().cpu().numpy()
@@ -216,6 +313,32 @@ class DMGNN(BaseGDA):
                    train=True)
     
     def process_graph(self, data):
+        """
+        Process input graph data to compute PPMI matrices and neighborhood features.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - A_ppmi : numpy.ndarray
+                PPMI matrix for structural information.
+            - X_nei : numpy.ndarray
+                Neighborhood-aware node features.
+
+        Notes
+        -----
+        Processing steps:
+
+        1. Converts edge index to dense adjacency
+        2. Computes k-step transition probabilities
+        3. Generates PPMI matrix
+        4. Creates neighborhood feature aggregation
+        """
         adj = to_dense_adj(data.edge_index).squeeze()
         g = sparse.csc_matrix(adj.detach().cpu().numpy())
         A_k = self.agg_tran_prob_mat(g, self.step)
@@ -227,6 +350,26 @@ class DMGNN(BaseGDA):
         return A_ppmi, X_nei
     
     def nei_prox_loss(self, emb, a):
+        """
+        Calculate neighborhood proximity loss.
+
+        Parameters
+        ----------
+        emb : torch.Tensor
+            Node embeddings.
+        a : torch.Tensor
+            Adjacency/PPMI matrix.
+
+        Returns
+        -------
+        torch.Tensor
+            Normalized proximity loss between nodes and their neighbors.
+
+        Notes
+        -----
+        Computes average L2 distance between node embeddings
+        and their neighborhood representations.
+        """
         nei_emb = torch.mm(a, emb)
         r = torch.norm(emb - nei_emb)
         r = r / emb.shape[0]
@@ -234,7 +377,26 @@ class DMGNN(BaseGDA):
         return r 
 
     def agg_tran_prob_mat(self, g, step):
-        """aggregated K-step transition probality"""
+        """
+        Compute aggregated k-step transition probability matrix.
+
+        Parameters
+        ----------
+        g : scipy.sparse.csc_matrix
+            Input graph adjacency matrix.
+        step : int
+            Number of propagation steps.
+
+        Returns
+        -------
+        numpy.ndarray
+            Aggregated transition probability matrix.
+
+        Notes
+        -----
+        Implements iterative computation of transition probabilities
+        up to k steps, with step-wise normalization.
+        """
         g = self.my_scale_sim_mat(g)
         g = csc_matrix.toarray(g)
         a_k = g
@@ -246,7 +408,28 @@ class DMGNN(BaseGDA):
         return a
     
     def my_scale_sim_mat(self, w):
-        """L1 row norm of a matrix"""
+        """
+        Compute L1 row normalization of a matrix.
+
+        Parameters
+        ----------
+        w : numpy.ndarray or scipy.sparse.csc_matrix
+            Input similarity/adjacency matrix.
+
+        Returns
+        -------
+        numpy.ndarray or scipy.sparse.csc_matrix
+            Row-normalized matrix.
+
+        Notes
+        -----
+        Implementation details:
+
+        1. Computes row sums
+        2. Handles numerical stability with epsilon
+        3. Prevents infinite values
+        4. Applies row-wise normalization
+        """
         rowsum = np.array(np.sum(w, axis=1), dtype=np.float32)
         r_inv = np.power(rowsum + 1e-12, -1).flatten()
         r_inv[np.isinf(r_inv)] = 0.
@@ -256,7 +439,26 @@ class DMGNN(BaseGDA):
         return w
     
     def compute_ppmi(self, a):
-        """compute PPMI, given aggregated K-step transition probality matrix as input"""
+        """
+        Compute Positive Pointwise Mutual Information matrix.
+
+        Parameters
+        ----------
+        a : numpy.ndarray
+            Aggregated transition probability matrix.
+
+        Returns
+        -------
+        numpy.ndarray
+            PPMI matrix with non-negative entries.
+
+        Notes
+        -----
+        1. Removes self-loops
+        2. Normalizes transition probabilities
+        3. Computes log-based PPMI values
+        4. Handles numerical stability
+        """
         np.fill_diagonal(a, 0)
         a = self.my_scale_sim_mat(a)
         (p, q) = np.shape(a)
@@ -270,7 +472,31 @@ class DMGNN(BaseGDA):
         return ppmi
 
     def batch_ppmi(self, batch_size, shuffle_index_s, shuffle_index_t, ppmi_s, ppmi_t):
-        """return the PPMI matrix between nodes in each batch"""
+        """
+        Generate batch-wise PPMI matrices for source and target domains.
+
+        Parameters
+        ----------
+        batch_size : int
+            Size of mini-batch.
+        shuffle_index_s : numpy.ndarray
+            Shuffled indices for source domain.
+        shuffle_index_t : numpy.ndarray
+            Shuffled indices for target domain.
+        ppmi_s : numpy.ndarray
+            Source domain PPMI matrix.
+        ppmi_t : numpy.ndarray
+            Target domain PPMI matrix.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - a_s : numpy.ndarray
+                Normalized source batch PPMI matrix.
+            - a_t : numpy.ndarray
+                Normalized target batch PPMI matrix.
+        """
         # #proximity matrix between source network nodes in each mini-batch
         # noinspection DuplicatedCode
         a_s = np.zeros((int(batch_size / 2), int(batch_size / 2)))
@@ -288,6 +514,31 @@ class DMGNN(BaseGDA):
         return self.my_scale_sim_mat(a_s), self.my_scale_sim_mat(a_t)
 
     def predict(self, data, train=False):
+        """
+        Make predictions on input data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph data.
+        train : bool, optional
+            Whether in training mode. Default: ``False``.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - logits : torch.Tensor
+                Model predictions.
+            - labels : torch.Tensor
+                True labels.
+
+        Notes
+        -----
+        1. Uses stored whole-graph representations
+        2. Combines direct and neighborhood predictions
+        3. Handles source/target domains differently
+        """
         self.dmgnn.eval()
 
         with torch.no_grad():
@@ -305,11 +556,60 @@ class DMGNN(BaseGDA):
         return logits, data.y
     
     def shuffle_aligned_list(self, data):
+        """
+        Shuffle multiple data arrays while maintaining alignment.
+
+        Parameters
+        ----------
+        data : list
+            List of numpy arrays to be shuffled.
+
+        Returns
+        -------
+        tuple
+            Contains:
+            - shuffle_index : numpy.ndarray
+                Generated permutation indices.
+            - shuffled_data : list
+                List of shuffled arrays maintaining alignment.
+
+        Notes
+        -----
+        Ensures consistent shuffling across multiple data arrays,
+        particularly useful for maintaining correspondence between
+        features and labels during batch generation.
+        """
         num = data[0].shape[0]
         shuffle_index = np.random.permutation(num)
         return shuffle_index, [d[shuffle_index] for d in data]
 
     def batch_generator(self, data, batch_size, shuffle=True):
+        """
+        Generate mini-batches of data.
+
+        Parameters
+        ----------
+        data : list
+            List of data arrays to be batched.
+        batch_size : int
+            Size of each batch.
+        shuffle : bool, optional
+            Whether to shuffle data. Default: ``True``.
+
+        Yields
+        ------
+        tuple
+            Contains:
+            - batch_data : list
+                List of batched data arrays.
+            - shuffle_index : numpy.ndarray
+                Indices for current batch.
+
+        Notes
+        -----
+        Implements infinite batch generation with optional
+        shuffling and aligned data handling.
+        """
         shuffle_index = None
         if shuffle:
             shuffle_index, data = self.shuffle_aligned_list(data)
