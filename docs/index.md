@@ -142,7 +142,7 @@ In addition to the easy application of existing GDA models, PyGDA makes it simpl
 | 18     | [Empowering Graph Representation Learning with Test-Time Graph Transformation](https://arxiv.org/abs/2210.03561)      |   GTrans   |   ICLR 2023    |
 | 19     | [Source Free Unsupervised Graph Domain Adaptation](https://arxiv.org/abs/2112.00955)      |   SOGA   |   WSDM 2024    |
 | 20     | [Collaborate to Adapt: Source-Free Graph Domain Adaptation via Bi-directional Adaptation](https://dl.acm.org/doi/10.1145/3589334.3645507)      |   GraphCTA   |   WWW 2024    |
-| 21     | [Aggregate to Adapt: Node-Centric Aggregation for Multi-Source-Free Graph Domain Adaptation](https://arxiv.org/pdf/2502.03033)      |   GraphCTA   |   WWW 2025    |
+| 21     | [Aggregate to Adapt: Node-Centric Aggregation for Multi-Source-Free Graph Domain Adaptation](https://arxiv.org/pdf/2502.03033)      |   GraphATA   |   WWW 2025    |
 
 
 ## Cite
