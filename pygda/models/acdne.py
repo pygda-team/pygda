@@ -173,8 +173,8 @@ class ACDNE(BaseGDA):
         x_s_new = np.concatenate((x_s, x_n_s), axis=1)
         x_t_new = np.concatenate((x_t, x_n_t), axis=1)
 
-        self.whole_xs_xt_stt = torch.tensor(vstack([x_s, x_t]).toarray()).to(self.device)
-        self.whole_xs_xt_stt_nei = torch.tensor(vstack([x_n_s, x_n_t]).toarray()).to(self.device)
+        self.whole_xs_xt_stt = torch.tensor(vstack([sp.coo_matrix(x_s), sp.coo_matrix(x_t)]).toarray()).to(self.device)
+        self.whole_xs_xt_stt_nei = torch.tensor(vstack([sp.coo_matrix(x_n_s), sp.coo_matrix(x_n_t)]).toarray()).to(self.device)
 
         self.acdne = self.init_model(**self.kwargs)
 

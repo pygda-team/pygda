@@ -136,13 +136,14 @@ In addition to the easy application of existing GDA models, PyGDA makes it simpl
 | 12     | [Domain-adaptive Message Passing Graph Neural Network](https://www.sciencedirect.com/science/article/abs/pii/S0893608023002253)  |   DMGNN    |    NN 2023    |
 | 13     | [Correntropy-Induced Wasserstein GCN: Learning Graph Embedding via Domain Adaptation](https://ieeexplore.ieee.org/document/10179964)  |   CWGCN    |    TIP 2023    |
 | 14     | [SA-GDA: Spectral Augmentation for Graph Domain Adaptation](https://dl.acm.org/doi/10.1145/3581783.3612264)  |  SAGDA   |    MM 2023    |
-| 15     | [Graph Domain Adaptation: A Generative View](https://dl.acm.org/doi/10.1145/3631712)  |   DGDA   |    TKDD 2024    |
-| 16     | [Rethinking Propagation for Unsupervised Graph Domain Adaptation](https://arxiv.org/abs/2402.05660)      |    A2GNN    |   AAAI 2024    |   
-| 17     | [Pairwise Alignment Improves Graph Domain Adaptation](https://arxiv.org/abs/2403.01092)      |   PairAlign   |   ICML 2024    |
-| 18     | [Empowering Graph Representation Learning with Test-Time Graph Transformation](https://arxiv.org/abs/2210.03561)      |   GTrans   |   ICLR 2023    |
-| 19     | [Source Free Unsupervised Graph Domain Adaptation](https://arxiv.org/abs/2112.00955)      |   SOGA   |   WSDM 2024    |
-| 20     | [Collaborate to Adapt: Source-Free Graph Domain Adaptation via Bi-directional Adaptation](https://dl.acm.org/doi/10.1145/3589334.3645507)      |   GraphCTA   |   WWW 2024    |
-| 21     | [Aggregate to Adapt: Node-Centric Aggregation for Multi-Source-Free Graph Domain Adaptation](https://arxiv.org/pdf/2502.03033)      |   GraphATA   |   WWW 2025    |
+| 15     | [Empowering Graph Representation Learning with Test-Time Graph Transformation](https://arxiv.org/abs/2210.03561)      |   GTrans   |   ICLR 2023    |
+| 16     | [Graph Domain Adaptation: A Generative View](https://dl.acm.org/doi/10.1145/3631712)  |   DGDA   |    TKDD 2024    |
+| 17     | [Rethinking Propagation for Unsupervised Graph Domain Adaptation](https://arxiv.org/abs/2402.05660)      |    A2GNN    |   AAAI 2024    |   
+| 18     | [Pairwise Alignment Improves Graph Domain Adaptation](https://arxiv.org/abs/2403.01092)      |   PairAlign   |   ICML 2024    |
+| 19     | [Structure Enhanced Prototypical Alignment for Unsupervised Cross-Domain Node Classification](https://www.sciencedirect.com/science/article/abs/pii/S0893608024003204)      |   SEPA   |   NN 2024    |
+| 20     | [Source Free Unsupervised Graph Domain Adaptation](https://arxiv.org/abs/2112.00955)      |   SOGA   |   WSDM 2024    |
+| 21     | [Collaborate to Adapt: Source-Free Graph Domain Adaptation via Bi-directional Adaptation](https://dl.acm.org/doi/10.1145/3589334.3645507)      |   GraphCTA   |   WWW 2024    |
+| 22     | [Aggregate to Adapt: Node-Centric Aggregation for Multi-Source-Free Graph Domain Adaptation](https://arxiv.org/pdf/2502.03033)      |   GraphATA   |   WWW 2025    |
 
 
 ## Cite

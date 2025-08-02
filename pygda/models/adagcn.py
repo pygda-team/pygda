@@ -6,6 +6,8 @@ import time
 
 import torch.nn as nn
 from torch_geometric.loader import NeighborLoader, DataLoader
+from itertools import chain
+
 
 from . import BaseGDA
 from ..nn import AdaGCNBase
@@ -175,6 +177,10 @@ class AdaGCN(BaseGDA):
             dis_loss = - torch.abs(dis_s - dis_t)
 
             loss = dis_loss + self.gp_weight * gp_loss
+
+            self.c_optimizer.zero_grad()
+            loss.backward()
+            self.c_optimizer.step()
         
         # use source classifier loss:
         encoded_source = self.adagcn(source_data)

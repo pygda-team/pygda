@@ -9,6 +9,7 @@ from .squirrel import SquirrelDataset
 from .twitch import TwitchDataset
 from .twitter import TwitterDataset
 from .tugraph import GraphTUDataset
+from .webkb import WebKBDataset
 
 
 __all__ = [
@@ -22,5 +23,6 @@ __all__ = [
     "SquirrelDataset",
     "TwitchDataset",
     "TwitterDataset",
-    "GraphTUDataset"
+    "GraphTUDataset",
+    "WebKBDataset"
 ]

@@ -1,0 +1,186 @@
+import os
+import os.path as osp
+import torch
+import numpy as np
+import torch.nn.functional as F
+from torch_geometric.data import InMemoryDataset, Data
+from torch_geometric.io import read_txt_array
+
+import csv
+import json
+import pickle as pkl
+import scipy
+import scipy.io as sio
+
+import warnings
+warnings.filterwarnings('ignore', category=DeprecationWarning)
+
+
+class WebKBDataset(InMemoryDataset):
+    """
+    WebKB network dataset loader for graph-based analysis.
+
+    Parameters
+    ----------
+    root : str
+        Root directory where the dataset should be saved
+    name : str
+        Name of the webkb dataset
+    transform : callable, optional
+        Function/transform that takes in a Data object and returns a transformed
+        version. Default: None
+    pre_transform : callable, optional
+        Function/transform to be applied to the data object before saving.
+        Default: None
+    pre_filter : callable, optional
+        Function that takes in a Data object and returns a boolean value,
+        indicating whether the data object should be included. Default: None
+
+    Notes
+    -----
+    - Nodes represent web pages
+    - Edges represent web page links
+    - Labels indicate web page categories
+    - Includes train/val/test splits (80/10/10)
+    """
+
+    def __init__(self,
+                 root,
+                 name,
+                 transform=None,
+                 pre_transform=None,
+                 pre_filter=None):
+        self.name = name
+        self.root = root
+        super(WebKBDataset, self).__init__(root, transform, pre_transform, pre_filter)
+
+        self.data, self.slices = torch.load(self.processed_paths[0])
+    
+    @property
+    def raw_file_names(self):
+        """
+        Names of required raw files.
+
+        Returns
+        -------
+        list[str]
+            List of required raw file names
+
+        Notes
+        -----
+        Required files:
+
+        - edgelist.txt: Contains edge connectivity
+        - labels.txt: Contains node labels
+        """
+        return ["edgelist.txt", "labels.txt"]
+
+    @property
+    def processed_file_names(self):
+        """
+        Names of processed data files.
+
+        Returns
+        -------
+        list[str]
+            List of processed file names
+
+        Notes
+        -----
+        Processed files:
+
+        - data.pt: Contains processed PyTorch Geometric data object
+        """
+        return ['data.pt']
+
+    def download(self):
+        """
+        Download raw data files.
+
+        Notes
+        -----
+        Empty implementation - data should be manually placed in raw directory
+        """
+        pass
+
+    def process(self):
+        """
+        Process raw data into PyTorch Geometric Data format.
+
+        Notes
+        -----
+        - Load edge list from text file
+        - Load node labels from text file
+        - Create Data object with:
+            
+            * Edge indices
+            * Node labels
+            * Train/val/test masks
+        
+        - Apply pre-transform if specified
+        - Save processed data
+
+        Data Split:
+
+        - Training: 80%
+        - Validation: 10%
+        - Testing: 10%
+
+        Features:
+        
+        - Random split generation
+        - Optional pre-transform support
+        - Efficient data storage
+        """
+        edge_path = osp.join(self.raw_dir, '{}_graph_edges.txt'.format(self.name))
+        edge_index = read_txt_array(edge_path, sep='\t', dtype=torch.long).t()
+
+        label_path = osp.join(self.raw_dir, '{}_feature_label.txt'.format(self.name))
+        f = open(label_path, 'r')
+        features_list = []
+        labels_list = []
+        for line in f.readlines():
+            parts = line.split('\t')
+            # Get features - split comma-separated string and convert to float
+            features = np.array([float(x) for x in parts[1].split(',')])
+            features_list.append(features)
+            # Get label - last element after tab
+            label = int(parts[-1])
+            labels_list.append(label)
+
+        x = np.array(features_list, dtype=float)
+        x = torch.from_numpy(x).to(torch.float)
+
+        y = np.array(labels_list, dtype=int)
+        y = torch.from_numpy(y).to(torch.int64)
+
+        data_list = []
+        data = Data(edge_index=edge_index, x=x, y=y, num_nodes=y.size(0))
+
+        random_node_indices = np.random.permutation(y.shape[0])
+        training_size = int(len(random_node_indices) * 0.8)
+        val_size = int(len(random_node_indices) * 0.1)
+        train_node_indices = random_node_indices[:training_size]
+        val_node_indices = random_node_indices[training_size:training_size + val_size]
+        test_node_indices = random_node_indices[training_size + val_size:]
+
+        train_masks = torch.zeros([y.shape[0]], dtype=torch.bool)
+        train_masks[train_node_indices] = 1
+        val_masks = torch.zeros([y.shape[0]], dtype=torch.bool)
+        val_masks[val_node_indices] = 1
+        test_masks = torch.zeros([y.shape[0]], dtype=torch.bool)
+        test_masks[test_node_indices] = 1
+
+        data.train_mask = train_masks
+        data.val_mask = val_masks
+        data.test_mask = test_masks
+
+        if self.pre_transform is not None:
+            if not os.path.exists(self.processed_paths[0] + 'eival.pt'):
+                data = self.pre_transform(data, self.processed_paths[0])
+
+        data_list.append(data)
+
+        data, slices = self.collate([data])
+
+        torch.save((data, slices), self.processed_paths[0])

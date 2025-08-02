@@ -20,6 +20,7 @@ from .soga import SOGA
 from .gtrans import GTrans
 from .graphcta import GraphCTA
 from .graphata import GraphATA
+from .sepa import SEPA
 
 
 __all__ = [
@@ -44,5 +45,6 @@ __all__ = [
     "SOGA",
     "GTrans",
     "GraphCTA",
-    "GraphATA"
+    "GraphATA",
+    "SEPA"
 ]
