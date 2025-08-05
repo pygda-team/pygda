@@ -27,11 +27,6 @@ class TwoHopNeighbor(object):
     sparse matrix multiplication of the adjacency matrix with itself, then
     concatenating the original edges with the new two-hop edges.
     
-    Parameters
-    ----------
-    None
-        This class takes no parameters.
-    
     Returns
     -------
     torch_geometric.data.Data
@@ -348,19 +343,19 @@ class TDSS(BaseGDA):
         -----
         If smooth_mode is 'RW':
         
-            - Performs random walk sampling with length rw_len
+        - Performs random walk sampling with length rw_len
             
-            - Creates dense adjacency matrix from walk paths
+        - Creates dense adjacency matrix from walk paths
             
-            - Converts back to sparse format
+        - Converts back to sparse format
         
         If smooth_mode is 'K-hop':
             
-            - For k=1: adds self-loops to existing edges
+        - For k=1: adds self-loops to existing edges
             
-            - For k>1: applies TwoHopNeighbor transformation (k-1) times
+        - For k>1: applies TwoHopNeighbor transformation (k-1) times
             
-            - Adds remaining self-loops to the expanded graph
+        - Adds remaining self-loops to the expanded graph
     
         Examples
         --------

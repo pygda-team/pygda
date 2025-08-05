@@ -30,6 +30,10 @@ logits, labels = model.predict(target_data)
 * **Seamlessly integrated data processing with PyG, ensuring full compatibility with PyG data structures.**
 
 ## What's New?
+**[08/2025]**. We have added support for very recent graph domain adaptation models.
+
+- 2 recent models including `TDSS` and `DGSDA` are supported.
+
 **[03/2025]**. We now support multi-source-free setting of graph domain adaptation.
 
 - To perform a multi-source-free domain adaptation task, simply modify one parameter in the model as follows:
@@ -143,7 +147,9 @@ In addition to the easy application of existing GDA models, PyGDA makes it simpl
 | 19     | [Structure Enhanced Prototypical Alignment for Unsupervised Cross-Domain Node Classification](https://www.sciencedirect.com/science/article/abs/pii/S0893608024003204)      |   SEPA   |   NN 2024    |
 | 20     | [Source Free Unsupervised Graph Domain Adaptation](https://arxiv.org/abs/2112.00955)      |   SOGA   |   WSDM 2024    |
 | 21     | [Collaborate to Adapt: Source-Free Graph Domain Adaptation via Bi-directional Adaptation](https://dl.acm.org/doi/10.1145/3589334.3645507)      |   GraphCTA   |   WWW 2024    |
-| 22     | [Aggregate to Adapt: Node-Centric Aggregation for Multi-Source-Free Graph Domain Adaptation](https://arxiv.org/pdf/2502.03033)      |   GraphATA   |   WWW 2025    |
+| 22     | [Smoothness Really Matters: A Simple Yet Effective Approach for Unsupervised Graph Domain Adaptation](https://arxiv.org/abs/2412.11654)      |   TDSS   |   AAAI 2025    |
+| 23     | [Aggregate to Adapt: Node-Centric Aggregation for Multi-Source-Free Graph Domain Adaptation](https://arxiv.org/pdf/2502.03033)      |   GraphATA   |   WWW 2025    |
+| 24     | [Disentangled Graph Spectral Domain Adaptation](https://openreview.net/forum?id=846O8wcn8K)      |   DGSDA   |   ICML 2025    |
 
 
 ## Cite

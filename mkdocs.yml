@@ -17,6 +17,7 @@ nav:
       - nn/CWGCNBase.md
       - nn/CacheGCNConv.md
       - nn/DGDABase.md
+      - nn/DGSDABase.md
       - nn/DWPretrain.md
       - nn/GMMClustering.md
       - nn/GNNBase.md
@@ -58,7 +59,9 @@ nav:
       - models/SOGA.md
       - models/SEPA.md
       - models/GraphCTA.md
+      - models/TDSS.md
       - models/GraphATA.md
+      - models/DGSDA.md
     - pygda.datasets: 
       - datasets/Overview.md
       - datasets/Airport.md

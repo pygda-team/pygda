@@ -23,4 +23,6 @@
 | 19 | SEPA | Source-needed | Node Level |
 | 20 | SOGA  | Source-free | Node Level |
 | 21 | GraphCTA | Source-free | Node Level |
-| 22 | GraphATA | Multi-Source-free | Node/Graph Level |
+| 22 | TDSS | Source-needed| Node Level |
+| 23 | GraphATA | Multi-Source-free | Node/Graph Level |
+| 24 | DGSDA | Source-needed | Node Level |

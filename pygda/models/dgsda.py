@@ -61,6 +61,13 @@ class DGSDA(BaseGDA):
         more log information. Default: ``2``.
     **kwargs
         Other parameters for the model.
+    
+    Examples
+    --------
+    >>> from pygda.models import DGSDA
+    >>> model = DGSDA(in_dim=128, hid_dim=64, num_classes=7)
+    >>> model.fit(source_data, target_data)
+    >>> logits, labels = model.predict(test_data)
     """
 
     def __init__(
@@ -201,6 +208,15 @@ class DGSDA(BaseGDA):
         -------
         torch.Tensor
             Entropy minimization loss value.
+        
+        Notes
+        -----
+        The entropy minimization loss is computed as:
+        
+        - Compute softmax probabilities from logits
+        - Calculate class-wise prediction frequencies
+        - Compute weighted entropy loss that penalizes uncertain predictions
+          more heavily for classes with higher prediction frequencies
         """
 
         probs = F.softmax(output, dim=1)
@@ -220,6 +236,35 @@ class DGSDA(BaseGDA):
             Source domain graph data.
         target_data : torch_geometric.data.Data
             Target domain graph data.
+
+        Notes
+        -----
+        The training process includes:
+        
+        1. **Data Loader Setup**: Creates appropriate data loaders based on
+           the task mode (node/graph) and batch size settings.
+        
+        2. **Model Initialization**: Initializes the DGSDA model with
+           specified architecture parameters.
+        
+        3. **Optimization**: Uses Adam optimizer with specified learning rate
+           and weight decay for parameter updates.
+        
+        4. **Training Loop**: For each epoch:
+
+            - Processes batches of source and target data
+
+            - Computes multi-component loss
+
+            - Updates model parameters
+
+            - Logs training metrics (loss, accuracy, time)
+        
+        5. **Evaluation**: Computes micro-F1 score on source domain
+           for monitoring training progress.
+        
+        The method supports both node-level and graph-level tasks, though
+        currently only node-level tasks are fully implemented.
         """
 
         if self.mode == 'node':
@@ -314,7 +359,9 @@ class DGSDA(BaseGDA):
 
         Notes
         -----
-        Placeholder method as preprocessing is handled through:
+        This method is currently a placeholder as preprocessing is handled
+        through the NeighborLoader and DataLoader classes during training
+        and prediction phases.
         """
 
     def predict(self, data, source=False):
@@ -332,10 +379,31 @@ class DGSDA(BaseGDA):
         -------
         tuple
             Contains:
+            
             - logits : torch.Tensor
                 Model predictions.
+
             - labels : torch.Tensor
                 True labels.
+        
+        Notes
+        -----
+        The prediction process:
+        
+        1. **Model Evaluation**: Sets the model to evaluation mode to
+           disable dropout and batch normalization updates.
+        
+        2. **Data Processing**: Uses the appropriate data loader (source
+           or target) based on the source parameter.
+        
+        3. **Inference**: Performs forward pass without gradient computation
+           for efficient inference.
+        
+        4. **Result Aggregation**: Concatenates predictions from multiple
+           batches if the data is processed in batches.
+        
+        The method automatically handles both source and target domain
+        prediction modes, with different processing pipelines for each.
         """
 
         self.dgsda.eval()

@@ -21,7 +21,8 @@ from .gtrans import GTrans
 from .graphcta import GraphCTA
 from .graphata import GraphATA
 from .sepa import SEPA
-
+from .dgsda import DGSDA
+from .tdss import TDSS
 
 __all__ = [
     "BaseGDA",
@@ -46,5 +47,7 @@ __all__ = [
     "GTrans",
     "GraphCTA",
     "GraphATA",
-    "SEPA"
+    "SEPA",
+    "DGSDA",
+    "TDSS"
 ]
