@@ -1,0 +1,706 @@
+{
+  "protocol": "Final epoch only, external target evaluation after fit.",
+  "std_convention": "sample standard deviation, ddof=1",
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "environment": {
+    "torch": "2.5.1+cu124",
+    "pyg": "2.8.0.post1",
+    "device": "cuda:0"
+  },
+  "author_commit": "55ff00a4e426a2d0fbeb913f11330ab69b68a506",
+  "pygda_base": "8cef1de93ce67f0e6feb9bbbc61ac15851cd67a6",
+  "provenance": {
+    "filename": "saga-stage7-multiseed-20261019T141318332985Z.json",
+    "sha256": "2dc9766c276ff3597c926287adce8bf68b976c2e432e9b041465b7b6b69cb5f8",
+    "runner": "run_saga_stage7_multiseed.py",
+    "note": "Validated fixed-configuration runner using the same library core; not a completed run of the new portable benchmark CLI."
+  },
+  "input_sha256": {
+    "/root/saga-reproduce/data/ACM1/feat.pt": "641fb675d2c5afca5d8c3b52bee42ea3d6445f4e34f9f883d85a5303bba9e60b",
+    "/root/saga-reproduce/data/ACM1/label.pt": "fef168df00070a64184d203bdc072632868b15b153c870cf1fc05242d80a709a",
+    "/root/saga-reproduce/data/ACM1/pap.pt": "ef09a2e317b3003989b14109d7f17bd29c4a80271aff65fff6b60e36629f252c",
+    "/root/saga-reproduce/data/ACM1/psp.pt": "896a3c9784f86b9b7ba9c89da108594ee4e21ef941dfd98bfd4df203ca093a9a",
+    "/root/saga-reproduce/data/ACM2/feat.pt": "8801b34c37eab594c55c9aabc72c3b7da6d6a39e7db5ee8bd9d76a9eec8435fe",
+    "/root/saga-reproduce/data/ACM2/label.pt": "798e44a8133a9416553106519f7c46f261e3e04e732a7ebbee7cded21a5d1f2d",
+    "/root/saga-reproduce/data/ACM2/pap.pt": "fb4157c9a9b9515ab4f1756d56dda1ed1c541b82bf0519b78ed6ad9d6c81fac8",
+    "/root/saga-reproduce/data/ACM2/psp.pt": "9e0c5a6ff8995b8e30d6be6ea3a6ad7541a2b4b96cd9c82763a4606ce8a8b9bd"
+  },
+  "summary": [
+    {
+      "source": "ACM1",
+      "target": "ACM2",
+      "completed_seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "expected_seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "n": 5,
+      "std_convention": "sample standard deviation, ddof=1; null for n<2",
+      "accuracy": {
+        "mean": 0.5112216969395372,
+        "std": 0.009429845430425694,
+        "minimum": 0.5023637720826076,
+        "maximum": 0.5264991291366011
+      },
+      "micro_f1": {
+        "mean": 0.5112216969395372,
+        "std": 0.009429845430425694,
+        "minimum": 0.5023637720826076,
+        "maximum": 0.5264991291366011
+      },
+      "macro_f1": {
+        "mean": 0.285946859480583,
+        "std": 0.037447410972771836,
+        "minimum": 0.25582291788561534,
+        "maximum": 0.34840520328735874
+      }
+    },
+    {
+      "source": "ACM2",
+      "target": "ACM1",
+      "completed_seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "expected_seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "n": 5,
+      "std_convention": "sample standard deviation, ddof=1; null for n<2",
+      "accuracy": {
+        "mean": 0.37474380165289256,
+        "std": 0.029499015691730416,
+        "minimum": 0.324297520661157,
+        "maximum": 0.3990082644628099
+      },
+      "micro_f1": {
+        "mean": 0.37474380165289256,
+        "std": 0.029499015691730416,
+        "minimum": 0.324297520661157,
+        "maximum": 0.3990082644628099
+      },
+      "macro_f1": {
+        "mean": 0.36653128051778555,
+        "std": 0.02768822386747863,
+        "minimum": 0.32056675394558076,
+        "maximum": 0.3914698662408514
+      }
+    }
+  ],
+  "runs": [
+    {
+      "source": "ACM1",
+      "target": "ACM2",
+      "seed": 0,
+      "parameters": {
+        "in_dim": 512,
+        "hid_dim": 256,
+        "num_classes": 3,
+        "embed_dim": 128,
+        "num_views": 2,
+        "k_hop": 2,
+        "filter_alpha": 0.0,
+        "alpha": 0.95,
+        "beta": 1.0,
+        "delta": 0.01,
+        "tau": 1.0,
+        "dropout": 0.0,
+        "lr": 0.001,
+        "weight_decay": 0.0001,
+        "batch_size": 1000,
+        "epoch": 50,
+        "seed": 0,
+        "device": "cuda:0",
+        "verbose": 0
+      },
+      "evaluation": {
+        "protocol": "All target nodes; final fixed epoch; no target-based epoch or hyperparameter selection.",
+        "accuracy": 0.5264991291366011,
+        "micro_f1": 0.5264991291366011,
+        "macro_f1": 0.34840520328735874,
+        "prediction_class_counts": [
+          3291,
+          5,
+          723
+        ],
+        "target_class_counts": [
+          1993,
+          965,
+          1061
+        ],
+        "confusion_matrix": [
+          [
+            1787,
+            0,
+            206
+          ],
+          [
+            777,
+            0,
+            188
+          ],
+          [
+            727,
+            5,
+            329
+          ]
+        ]
+      }
+    },
+    {
+      "source": "ACM1",
+      "target": "ACM2",
+      "seed": 1,
+      "parameters": {
+        "in_dim": 512,
+        "hid_dim": 256,
+        "num_classes": 3,
+        "embed_dim": 128,
+        "num_views": 2,
+        "k_hop": 2,
+        "filter_alpha": 0.0,
+        "alpha": 0.95,
+        "beta": 1.0,
+        "delta": 0.01,
+        "tau": 1.0,
+        "dropout": 0.0,
+        "lr": 0.001,
+        "weight_decay": 0.0001,
+        "batch_size": 1000,
+        "epoch": 50,
+        "seed": 1,
+        "device": "cuda:0",
+        "verbose": 0
+      },
+      "evaluation": {
+        "protocol": "All target nodes; final fixed epoch; no target-based epoch or hyperparameter selection.",
+        "accuracy": 0.5068424981338642,
+        "micro_f1": 0.5068424981338642,
+        "macro_f1": 0.263432066555598,
+        "prediction_class_counts": [
+          3858,
+          8,
+          153
+        ],
+        "target_class_counts": [
+          1993,
+          965,
+          1061
+        ],
+        "confusion_matrix": [
+          [
+            1965,
+            2,
+            26
+          ],
+          [
+            910,
+            0,
+            55
+          ],
+          [
+            983,
+            6,
+            72
+          ]
+        ]
+      }
+    },
+    {
+      "source": "ACM1",
+      "target": "ACM2",
+      "seed": 2,
+      "parameters": {
+        "in_dim": 512,
+        "hid_dim": 256,
+        "num_classes": 3,
+        "embed_dim": 128,
+        "num_views": 2,
+        "k_hop": 2,
+        "filter_alpha": 0.0,
+        "alpha": 0.95,
+        "beta": 1.0,
+        "delta": 0.01,
+        "tau": 1.0,
+        "dropout": 0.0,
+        "lr": 0.001,
+        "weight_decay": 0.0001,
+        "batch_size": 1000,
+        "epoch": 50,
+        "seed": 2,
+        "device": "cuda:0",
+        "verbose": 0
+      },
+      "evaluation": {
+        "protocol": "All target nodes; final fixed epoch; no target-based epoch or hyperparameter selection.",
+        "accuracy": 0.5068424981338642,
+        "micro_f1": 0.5068424981338642,
+        "macro_f1": 0.26995532387525994,
+        "prediction_class_counts": [
+          3803,
+          14,
+          202
+        ],
+        "target_class_counts": [
+          1993,
+          965,
+          1061
+        ],
+        "confusion_matrix": [
+          [
+            1951,
+            2,
+            40
+          ],
+          [
+            887,
+            1,
+            77
+          ],
+          [
+            965,
+            11,
+            85
+          ]
+        ]
+      }
+    },
+    {
+      "source": "ACM1",
+      "target": "ACM2",
+      "seed": 3,
+      "parameters": {
+        "in_dim": 512,
+        "hid_dim": 256,
+        "num_classes": 3,
+        "embed_dim": 128,
+        "num_views": 2,
+        "k_hop": 2,
+        "filter_alpha": 0.0,
+        "alpha": 0.95,
+        "beta": 1.0,
+        "delta": 0.01,
+        "tau": 1.0,
+        "dropout": 0.0,
+        "lr": 0.001,
+        "weight_decay": 0.0001,
+        "batch_size": 1000,
+        "epoch": 50,
+        "seed": 3,
+        "device": "cuda:0",
+        "verbose": 0
+      },
+      "evaluation": {
+        "protocol": "All target nodes; final fixed epoch; no target-based epoch or hyperparameter selection.",
+        "accuracy": 0.5135605872107489,
+        "micro_f1": 0.5135605872107489,
+        "macro_f1": 0.2921187857990832,
+        "prediction_class_counts": [
+          3727,
+          8,
+          284
+        ],
+        "target_class_counts": [
+          1993,
+          965,
+          1061
+        ],
+        "confusion_matrix": [
+          [
+            1928,
+            1,
+            64
+          ],
+          [
+            881,
+            0,
+            84
+          ],
+          [
+            918,
+            7,
+            136
+          ]
+        ]
+      }
+    },
+    {
+      "source": "ACM1",
+      "target": "ACM2",
+      "seed": 4,
+      "parameters": {
+        "in_dim": 512,
+        "hid_dim": 256,
+        "num_classes": 3,
+        "embed_dim": 128,
+        "num_views": 2,
+        "k_hop": 2,
+        "filter_alpha": 0.0,
+        "alpha": 0.95,
+        "beta": 1.0,
+        "delta": 0.01,
+        "tau": 1.0,
+        "dropout": 0.0,
+        "lr": 0.001,
+        "weight_decay": 0.0001,
+        "batch_size": 1000,
+        "epoch": 50,
+        "seed": 4,
+        "device": "cuda:0",
+        "verbose": 0
+      },
+      "evaluation": {
+        "protocol": "All target nodes; final fixed epoch; no target-based epoch or hyperparameter selection.",
+        "accuracy": 0.5023637720826076,
+        "micro_f1": 0.5023637720826076,
+        "macro_f1": 0.25582291788561534,
+        "prediction_class_counts": [
+          3854,
+          10,
+          155
+        ],
+        "target_class_counts": [
+          1993,
+          965,
+          1061
+        ],
+        "confusion_matrix": [
+          [
+            1960,
+            2,
+            31
+          ],
+          [
+            900,
+            0,
+            65
+          ],
+          [
+            994,
+            8,
+            59
+          ]
+        ]
+      }
+    },
+    {
+      "source": "ACM2",
+      "target": "ACM1",
+      "seed": 0,
+      "parameters": {
+        "in_dim": 512,
+        "hid_dim": 256,
+        "num_classes": 3,
+        "embed_dim": 128,
+        "num_views": 2,
+        "k_hop": 2,
+        "filter_alpha": 0.0,
+        "alpha": 0.95,
+        "beta": 1.0,
+        "delta": 0.0,
+        "tau": 1.0,
+        "dropout": 0.05,
+        "lr": 0.001,
+        "weight_decay": 0.0001,
+        "batch_size": 1000,
+        "epoch": 100,
+        "seed": 0,
+        "device": "cuda:0",
+        "verbose": 0
+      },
+      "evaluation": {
+        "protocol": "All target nodes; final fixed epoch; no target-based epoch or hyperparameter selection.",
+        "accuracy": 0.3748760330578512,
+        "micro_f1": 0.3748760330578512,
+        "macro_f1": 0.36262649834986593,
+        "prediction_class_counts": [
+          502,
+          1446,
+          1077
+        ],
+        "target_class_counts": [
+          1061,
+          965,
+          999
+        ],
+        "confusion_matrix": [
+          [
+            217,
+            417,
+            427
+          ],
+          [
+            138,
+            547,
+            280
+          ],
+          [
+            147,
+            482,
+            370
+          ]
+        ]
+      }
+    },
+    {
+      "source": "ACM2",
+      "target": "ACM1",
+      "seed": 1,
+      "parameters": {
+        "in_dim": 512,
+        "hid_dim": 256,
+        "num_classes": 3,
+        "embed_dim": 128,
+        "num_views": 2,
+        "k_hop": 2,
+        "filter_alpha": 0.0,
+        "alpha": 0.95,
+        "beta": 1.0,
+        "delta": 0.0,
+        "tau": 1.0,
+        "dropout": 0.05,
+        "lr": 0.001,
+        "weight_decay": 0.0001,
+        "batch_size": 1000,
+        "epoch": 100,
+        "seed": 1,
+        "device": "cuda:0",
+        "verbose": 0
+      },
+      "evaluation": {
+        "protocol": "All target nodes; final fixed epoch; no target-based epoch or hyperparameter selection.",
+        "accuracy": 0.38975206611570246,
+        "micro_f1": 0.38975206611570246,
+        "macro_f1": 0.3772845666755662,
+        "prediction_class_counts": [
+          510,
+          1579,
+          936
+        ],
+        "target_class_counts": [
+          1061,
+          965,
+          999
+        ],
+        "confusion_matrix": [
+          [
+            237,
+            500,
+            324
+          ],
+          [
+            135,
+            580,
+            250
+          ],
+          [
+            138,
+            499,
+            362
+          ]
+        ]
+      }
+    },
+    {
+      "source": "ACM2",
+      "target": "ACM1",
+      "seed": 2,
+      "parameters": {
+        "in_dim": 512,
+        "hid_dim": 256,
+        "num_classes": 3,
+        "embed_dim": 128,
+        "num_views": 2,
+        "k_hop": 2,
+        "filter_alpha": 0.0,
+        "alpha": 0.95,
+        "beta": 1.0,
+        "delta": 0.0,
+        "tau": 1.0,
+        "dropout": 0.05,
+        "lr": 0.001,
+        "weight_decay": 0.0001,
+        "batch_size": 1000,
+        "epoch": 100,
+        "seed": 2,
+        "device": "cuda:0",
+        "verbose": 0
+      },
+      "evaluation": {
+        "protocol": "All target nodes; final fixed epoch; no target-based epoch or hyperparameter selection.",
+        "accuracy": 0.324297520661157,
+        "micro_f1": 0.324297520661157,
+        "macro_f1": 0.32056675394558076,
+        "prediction_class_counts": [
+          579,
+          1292,
+          1154
+        ],
+        "target_class_counts": [
+          1061,
+          965,
+          999
+        ],
+        "confusion_matrix": [
+          [
+            228,
+            456,
+            377
+          ],
+          [
+            201,
+            370,
+            394
+          ],
+          [
+            150,
+            466,
+            383
+          ]
+        ]
+      }
+    },
+    {
+      "source": "ACM2",
+      "target": "ACM1",
+      "seed": 3,
+      "parameters": {
+        "in_dim": 512,
+        "hid_dim": 256,
+        "num_classes": 3,
+        "embed_dim": 128,
+        "num_views": 2,
+        "k_hop": 2,
+        "filter_alpha": 0.0,
+        "alpha": 0.95,
+        "beta": 1.0,
+        "delta": 0.0,
+        "tau": 1.0,
+        "dropout": 0.05,
+        "lr": 0.001,
+        "weight_decay": 0.0001,
+        "batch_size": 1000,
+        "epoch": 100,
+        "seed": 3,
+        "device": "cuda:0",
+        "verbose": 0
+      },
+      "evaluation": {
+        "protocol": "All target nodes; final fixed epoch; no target-based epoch or hyperparameter selection.",
+        "accuracy": 0.38578512396694215,
+        "micro_f1": 0.38578512396694215,
+        "macro_f1": 0.38070871737706335,
+        "prediction_class_counts": [
+          592,
+          1349,
+          1084
+        ],
+        "target_class_counts": [
+          1061,
+          965,
+          999
+        ],
+        "confusion_matrix": [
+          [
+            280,
+            396,
+            385
+          ],
+          [
+            145,
+            504,
+            316
+          ],
+          [
+            167,
+            449,
+            383
+          ]
+        ]
+      }
+    },
+    {
+      "source": "ACM2",
+      "target": "ACM1",
+      "seed": 4,
+      "parameters": {
+        "in_dim": 512,
+        "hid_dim": 256,
+        "num_classes": 3,
+        "embed_dim": 128,
+        "num_views": 2,
+        "k_hop": 2,
+        "filter_alpha": 0.0,
+        "alpha": 0.95,
+        "beta": 1.0,
+        "delta": 0.0,
+        "tau": 1.0,
+        "dropout": 0.05,
+        "lr": 0.001,
+        "weight_decay": 0.0001,
+        "batch_size": 1000,
+        "epoch": 100,
+        "seed": 4,
+        "device": "cuda:0",
+        "verbose": 0
+      },
+      "evaluation": {
+        "protocol": "All target nodes; final fixed epoch; no target-based epoch or hyperparameter selection.",
+        "accuracy": 0.3990082644628099,
+        "micro_f1": 0.3990082644628099,
+        "macro_f1": 0.3914698662408514,
+        "prediction_class_counts": [
+          593,
+          1248,
+          1184
+        ],
+        "target_class_counts": [
+          1061,
+          965,
+          999
+        ],
+        "confusion_matrix": [
+          [
+            256,
+            323,
+            482
+          ],
+          [
+            180,
+            517,
+            268
+          ],
+          [
+            157,
+            408,
+            434
+          ]
+        ]
+      }
+    }
+  ],
+  "paper_performance_reproduced": false,
+  "scope": "ACM pair only; MAG real-data validation not performed."
+}

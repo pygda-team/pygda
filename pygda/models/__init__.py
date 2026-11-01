@@ -23,6 +23,11 @@ from .graphata import GraphATA
 from .sepa import SEPA
 from .dgsda import DGSDA
 from .tdss import TDSS
+from .adalign import ADAlign
+from .imgda import ImGDA
+from .pala import PALA
+from .saga import SAGA
+from .uaga import UAGA
 
 __all__ = [
     "BaseGDA",
@@ -49,5 +54,10 @@ __all__ = [
     "GraphATA",
     "SEPA",
     "DGSDA",
-    "TDSS"
+    "TDSS",
+    "ADAlign",
+    "ImGDA",
+    "PALA",
+    "SAGA",
+    "UAGA",
 ]

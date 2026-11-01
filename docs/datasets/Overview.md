@@ -86,3 +86,10 @@ Each dataset documentation includes:
 - Implementation details
 
 For specific details about each dataset, please visit their respective documentation pages linked above.
+
+### Method-specific adapters
+
+- [ImGDA](ImGDA.md): `load_imgda_pair`, `prepare_imgda_source`.
+- [PALA](PALA.md): `load_pala_graph`, `load_pala_cache`, `prepare_pala_source`, `prepare_pala_target`.
+- [SAGA](SAGA.md): `SAGADataset`.
+- [UAGA](UAGA.md): `load_uaga_graph`.

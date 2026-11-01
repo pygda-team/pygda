@@ -1,0 +1,988 @@
+{
+  "scope": "six Citation transfers, five independent seeded runs each",
+  "planned_runs": 30,
+  "epochs_per_run": 150,
+  "seeds": [
+    42,
+    43,
+    44,
+    45,
+    46
+  ],
+  "parameters": {
+    "in_dim": 6775,
+    "hid_dim": 128,
+    "num_classes": 5,
+    "num_layers": 2,
+    "dropout": 0.25,
+    "s_pnums": 0,
+    "t_pnums": 10,
+    "weight": 0.4,
+    "weight_decay": 0.001,
+    "lr": 0.001,
+    "epoch": 150,
+    "device": "cuda:0",
+    "batch_size": 0,
+    "num_neigh": -1,
+    "verbose": 1,
+    "t_batchsize": 2048,
+    "alpha": 0.5,
+    "mode": "node",
+    "adv": false
+  },
+  "monitor_revision": 2,
+  "status": "all_30_runs_passed",
+  "runner_sha256": "b371f7be75c9f98014c77675678a1af57ca79f8b60db61ff9752c92318daf578",
+  "evaluation_protocol": "Final epoch only; all target nodes; no target-label model selection",
+  "std_convention": "Population standard deviation across seeds (ddof=0); JSON F1 values in [0,1], CSV values in percent.",
+  "interpretation": "Fixed audited CLI defaults; not task-specific paper-best settings or the author target-selected maximum-over-epoch protocol.",
+  "summary": [
+    {
+      "source": "ACMv9",
+      "target": "Citationv1",
+      "n_runs": 5,
+      "complete": true,
+      "seeds": [
+        42,
+        43,
+        44,
+        45,
+        46
+      ],
+      "micro_f1_mean": 0.7786010072747621,
+      "micro_f1_std": 0.004945977282913186,
+      "macro_f1_mean": 0.7372975483474128,
+      "macro_f1_std": 0.008807408875646709
+    },
+    {
+      "source": "ACMv9",
+      "target": "DBLPv7",
+      "n_runs": 5,
+      "complete": true,
+      "seeds": [
+        42,
+        43,
+        44,
+        45,
+        46
+      ],
+      "micro_f1_mean": 0.7026258205689278,
+      "micro_f1_std": 0.023646451046281856,
+      "macro_f1_mean": 0.6584008885439808,
+      "macro_f1_std": 0.02652946597706257
+    },
+    {
+      "source": "Citationv1",
+      "target": "ACMv9",
+      "n_runs": 5,
+      "complete": true,
+      "seeds": [
+        42,
+        43,
+        44,
+        45,
+        46
+      ],
+      "micro_f1_mean": 0.7290811965811965,
+      "micro_f1_std": 0.003907628372853407,
+      "macro_f1_mean": 0.7334886335808262,
+      "macro_f1_std": 0.006207669648534876
+    },
+    {
+      "source": "Citationv1",
+      "target": "DBLPv7",
+      "n_runs": 5,
+      "complete": true,
+      "seeds": [
+        42,
+        43,
+        44,
+        45,
+        46
+      ],
+      "micro_f1_mean": 0.7581327498176513,
+      "micro_f1_std": 0.014057460780915089,
+      "macro_f1_mean": 0.7191816050989236,
+      "macro_f1_std": 0.01694693031450274
+    },
+    {
+      "source": "DBLPv7",
+      "target": "ACMv9",
+      "n_runs": 5,
+      "complete": true,
+      "seeds": [
+        42,
+        43,
+        44,
+        45,
+        46
+      ],
+      "micro_f1_mean": 0.6551068376068376,
+      "micro_f1_std": 0.009444686155394023,
+      "macro_f1_mean": 0.586265806040562,
+      "macro_f1_std": 0.01614197154367095
+    },
+    {
+      "source": "DBLPv7",
+      "target": "Citationv1",
+      "n_runs": 5,
+      "complete": true,
+      "seeds": [
+        42,
+        43,
+        44,
+        45,
+        46
+      ],
+      "micro_f1_mean": 0.7664689423614996,
+      "micro_f1_std": 0.003935746230164489,
+      "macro_f1_mean": 0.6989281798732551,
+      "macro_f1_std": 0.014679261377906105
+    }
+  ],
+  "environment": {
+    "python": "3.12.3 | packaged by Anaconda, Inc. | (main, May  6 2024, 19:46:43) [GCC 11.2.0]",
+    "torch": "2.5.1+cu124",
+    "pyg": "2.8.0.post1",
+    "cuda_runtime": "12.4",
+    "gpu": "NVIDIA GeForce RTX 4090",
+    "gpu_total_mib": 24082.875,
+    "pygda_path": "/root/adalign-reproduce/pygda/pygda/__init__.py"
+  },
+  "deterministic_algorithms_enabled": false,
+  "data_files_unchanged": true,
+  "workspaces_unchanged": true,
+  "total_elapsed_seconds": 260.10970205347985,
+  "successful_runs": 30,
+  "source_report_sha256": "bfecf73981c37bf504207626611bb193cefe60cc50ae52aa32afda7f1be0b3a9",
+  "pygda_base_commit": "8cef1de93ce67f0e6feb9bbbc61ac15851cd67a6",
+  "author_commit": "d6d7a700049782f9402b2bfa891c60f1cba552c7",
+  "data_fingerprints": {
+    "ACMv9/raw/ACMv9_docs.txt": "e5d1e4e27a8443d9e10d3fafb315316a89e0c867fc454e133ac6cf58952ca157",
+    "ACMv9/raw/ACMv9_edgelist.txt": "76de008f9a31b3feae41e6ed66986fad1928a3a657019f0b6e44712bb7711fe0",
+    "ACMv9/raw/ACMv9_labels.txt": "eb7cd4371ce7ca600fd3ee31ea677429dec9ea98c99c7d7c635a0aff3a06e102",
+    "ACMv9/processed/data.pt": "d496b9a1947ddc649e81840d197b5cb46289fe9a4cd21f4d2a90b4b477299968",
+    "ACMv9/processed/pre_filter.pt": "bed90159f346b7ee0fa80e1d287e0ebe46264111c1e928ef341d926aae6a075c",
+    "ACMv9/processed/pre_transform.pt": "bed90159f346b7ee0fa80e1d287e0ebe46264111c1e928ef341d926aae6a075c",
+    "Citationv1/raw/Citationv1_docs.txt": "00805583f8e3db24e73436d0ecb514278216aeef23c075976a248342d0048e12",
+    "Citationv1/raw/Citationv1_edgelist.txt": "34ee2ce1b16dae6ef4b833a841afde78dad0daaa72525dba616c531360d9b625",
+    "Citationv1/raw/Citationv1_labels.txt": "4095a623ee7bf18207727e3bb1088637a2aba8411658bae03ae0302c1a74dff3",
+    "Citationv1/processed/data.pt": "c010e2f9f43580e3408e9cf712eb4c51d6572366d1b9bc1af93481a2692a75d1",
+    "DBLPv7/raw/DBLPv7_docs.txt": "612355925f6ca20969c4fe9038a66784a66cc9503110bf0d6ea994a0aa83d920",
+    "DBLPv7/raw/DBLPv7_edgelist.txt": "d657f47c6ad9997bd54908ccc06a1d89f8872c26f72c8559e58f7a750c3e4a4f",
+    "DBLPv7/raw/DBLPv7_labels.txt": "823b8fc62383f64ae60971c355b670354f1f483957596739cdd06a97536e536b",
+    "DBLPv7/processed/data.pt": "53cb1432744e7a3108c13d5d8336126484c76697dd460c99e692495610b01dfe"
+  },
+  "runs": [
+    {
+      "source": "ACMv9",
+      "target": "Citationv1",
+      "seed": 42,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.7692221600447677,
+        "macro_f1": 0.723227538371716,
+        "prediction_class_counts": {
+          "0": 2635,
+          "1": 3038,
+          "2": 1483,
+          "3": 233,
+          "4": 1546
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 8.640292394906282,
+      "gpu_memory_mib": {
+        "peak_allocated": 1600.7734375,
+        "peak_reserved": 2168.0,
+        "current_allocated": 498.5498046875,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "ACMv9",
+      "target": "Citationv1",
+      "seed": 43,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.7815332960268606,
+        "macro_f1": 0.7372407960178222,
+        "prediction_class_counts": {
+          "0": 2606,
+          "1": 2805,
+          "2": 1612,
+          "3": 254,
+          "4": 1658
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 8.036264535970986,
+      "gpu_memory_mib": {
+        "peak_allocated": 1601.341796875,
+        "peak_reserved": 2188.0,
+        "current_allocated": 499.23828125,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "ACMv9",
+      "target": "Citationv1",
+      "seed": 44,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.7796306659205372,
+        "macro_f1": 0.7506311161533133,
+        "prediction_class_counts": {
+          "0": 2360,
+          "1": 3163,
+          "2": 1484,
+          "3": 325,
+          "4": 1603
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 8.00076830945909,
+      "gpu_memory_mib": {
+        "peak_allocated": 1601.341796875,
+        "peak_reserved": 2188.0,
+        "current_allocated": 499.23828125,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "ACMv9",
+      "target": "Citationv1",
+      "seed": 45,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.7835478455512032,
+        "macro_f1": 0.740121618025323,
+        "prediction_class_counts": {
+          "0": 2568,
+          "1": 2823,
+          "2": 1680,
+          "3": 256,
+          "4": 1608
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 8.03129840735346,
+      "gpu_memory_mib": {
+        "peak_allocated": 1601.341796875,
+        "peak_reserved": 2188.0,
+        "current_allocated": 499.23828125,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "ACMv9",
+      "target": "Citationv1",
+      "seed": 46,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.7790710688304421,
+        "macro_f1": 0.7352666731688893,
+        "prediction_class_counts": {
+          "0": 2704,
+          "1": 2659,
+          "2": 1660,
+          "3": 254,
+          "4": 1658
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 7.967613121494651,
+      "gpu_memory_mib": {
+        "peak_allocated": 1601.341796875,
+        "peak_reserved": 2188.0,
+        "current_allocated": 499.23828125,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "ACMv9",
+      "target": "DBLPv7",
+      "seed": 42,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.7087892049598833,
+        "macro_f1": 0.6685355050771269,
+        "prediction_class_counts": {
+          "0": 1464,
+          "1": 2184,
+          "2": 784,
+          "3": 156,
+          "4": 896
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 7.160417675040662,
+      "gpu_memory_mib": {
+        "peak_allocated": 1245.73095703125,
+        "peak_reserved": 1778.0,
+        "current_allocated": 410.0380859375,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "ACMv9",
+      "target": "DBLPv7",
+      "seed": 43,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.7452589350838804,
+        "macro_f1": 0.699659864403989,
+        "prediction_class_counts": {
+          "0": 1581,
+          "1": 1711,
+          "2": 1122,
+          "3": 148,
+          "4": 922
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 7.352741896174848,
+      "gpu_memory_mib": {
+        "peak_allocated": 1245.73095703125,
+        "peak_reserved": 1778.0,
+        "current_allocated": 410.0380859375,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "ACMv9",
+      "target": "DBLPv7",
+      "seed": 44,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.6807075127644056,
+        "macro_f1": 0.6249959531098169,
+        "prediction_class_counts": {
+          "0": 1474,
+          "1": 2613,
+          "2": 505,
+          "3": 121,
+          "4": 771
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 7.391008644364774,
+      "gpu_memory_mib": {
+        "peak_allocated": 1245.73095703125,
+        "peak_reserved": 1778.0,
+        "current_allocated": 410.0380859375,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "ACMv9",
+      "target": "DBLPv7",
+      "seed": 45,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.6962071480671043,
+        "macro_f1": 0.6641775397695554,
+        "prediction_class_counts": {
+          "0": 1504,
+          "1": 2342,
+          "2": 604,
+          "3": 203,
+          "4": 831
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 7.270405163988471,
+      "gpu_memory_mib": {
+        "peak_allocated": 1245.73095703125,
+        "peak_reserved": 1778.0,
+        "current_allocated": 410.0380859375,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "ACMv9",
+      "target": "DBLPv7",
+      "seed": 46,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.6821663019693655,
+        "macro_f1": 0.6346355803594157,
+        "prediction_class_counts": {
+          "0": 1500,
+          "1": 2467,
+          "2": 534,
+          "3": 144,
+          "4": 839
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 7.211537532508373,
+      "gpu_memory_mib": {
+        "peak_allocated": 1245.73095703125,
+        "peak_reserved": 1778.0,
+        "current_allocated": 410.0380859375,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "Citationv1",
+      "target": "ACMv9",
+      "seed": 42,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.7258547008547008,
+        "macro_f1": 0.7296387489128777,
+        "prediction_class_counts": {
+          "0": 1707,
+          "1": 3834,
+          "2": 1944,
+          "3": 516,
+          "4": 1359
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 8.051197255030274,
+      "gpu_memory_mib": {
+        "peak_allocated": 1618.22900390625,
+        "peak_reserved": 2120.0,
+        "current_allocated": 499.24267578125,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "Citationv1",
+      "target": "ACMv9",
+      "seed": 43,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.7270299145299145,
+        "macro_f1": 0.7296997081463437,
+        "prediction_class_counts": {
+          "0": 2145,
+          "1": 2719,
+          "2": 2468,
+          "3": 512,
+          "4": 1516
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 7.99675905611366,
+      "gpu_memory_mib": {
+        "peak_allocated": 1618.22900390625,
+        "peak_reserved": 2120.0,
+        "current_allocated": 499.24267578125,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "Citationv1",
+      "target": "ACMv9",
+      "seed": 44,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.727991452991453,
+        "macro_f1": 0.730053280515849,
+        "prediction_class_counts": {
+          "0": 1933,
+          "1": 3444,
+          "2": 2020,
+          "3": 506,
+          "4": 1457
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 8.043368825688958,
+      "gpu_memory_mib": {
+        "peak_allocated": 1618.22900390625,
+        "peak_reserved": 2120.0,
+        "current_allocated": 499.24267578125,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "Citationv1",
+      "target": "ACMv9",
+      "seed": 45,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.7367521367521368,
+        "macro_f1": 0.7457479933799828,
+        "prediction_class_counts": {
+          "0": 1794,
+          "1": 3265,
+          "2": 2252,
+          "3": 595,
+          "4": 1454
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 7.980559180490673,
+      "gpu_memory_mib": {
+        "peak_allocated": 1618.22900390625,
+        "peak_reserved": 2120.0,
+        "current_allocated": 499.24267578125,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "Citationv1",
+      "target": "ACMv9",
+      "seed": 46,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.7277777777777777,
+        "macro_f1": 0.732303436949078,
+        "prediction_class_counts": {
+          "0": 1838,
+          "1": 3351,
+          "2": 2149,
+          "3": 516,
+          "4": 1506
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 8.357559468597174,
+      "gpu_memory_mib": {
+        "peak_allocated": 1618.22900390625,
+        "peak_reserved": 2120.0,
+        "current_allocated": 499.24267578125,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "Citationv1",
+      "target": "DBLPv7",
+      "seed": 42,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.7638584974471189,
+        "macro_f1": 0.7257196939051882,
+        "prediction_class_counts": {
+          "0": 1470,
+          "1": 1883,
+          "2": 1097,
+          "3": 175,
+          "4": 859
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 7.75898902118206,
+      "gpu_memory_mib": {
+        "peak_allocated": 1213.2509765625,
+        "peak_reserved": 1728.0,
+        "current_allocated": 398.94189453125,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "Citationv1",
+      "target": "DBLPv7",
+      "seed": 43,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.7653172866520788,
+        "macro_f1": 0.7260480717453355,
+        "prediction_class_counts": {
+          "0": 1535,
+          "1": 1625,
+          "2": 1202,
+          "3": 192,
+          "4": 930
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 7.820680692791939,
+      "gpu_memory_mib": {
+        "peak_allocated": 1213.2509765625,
+        "peak_reserved": 1728.0,
+        "current_allocated": 398.94189453125,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "Citationv1",
+      "target": "DBLPv7",
+      "seed": 44,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.7718818380743983,
+        "macro_f1": 0.7355219015994023,
+        "prediction_class_counts": {
+          "0": 1411,
+          "1": 1867,
+          "2": 1137,
+          "3": 182,
+          "4": 887
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 7.6875949604436755,
+      "gpu_memory_mib": {
+        "peak_allocated": 1213.2509765625,
+        "peak_reserved": 1728.0,
+        "current_allocated": 398.94189453125,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "Citationv1",
+      "target": "DBLPv7",
+      "seed": 45,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.7582056892778993,
+        "macro_f1": 0.7221517387396912,
+        "prediction_class_counts": {
+          "0": 1479,
+          "1": 1879,
+          "2": 1065,
+          "3": 188,
+          "4": 873
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 7.682386462576687,
+      "gpu_memory_mib": {
+        "peak_allocated": 1213.2509765625,
+        "peak_reserved": 1728.0,
+        "current_allocated": 398.94189453125,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "Citationv1",
+      "target": "DBLPv7",
+      "seed": 46,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.7314004376367614,
+        "macro_f1": 0.6864666195050005,
+        "prediction_class_counts": {
+          "0": 1512,
+          "1": 2097,
+          "2": 807,
+          "3": 156,
+          "4": 912
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 7.81337293703109,
+      "gpu_memory_mib": {
+        "peak_allocated": 1213.2509765625,
+        "peak_reserved": 1728.0,
+        "current_allocated": 398.94189453125,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "DBLPv7",
+      "target": "ACMv9",
+      "seed": 42,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.6387820512820512,
+        "macro_f1": 0.5626083492560024,
+        "prediction_class_counts": {
+          "0": 1542,
+          "1": 3646,
+          "2": 3031,
+          "3": 52,
+          "4": 1089
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 7.88287774566561,
+      "gpu_memory_mib": {
+        "peak_allocated": 1382.87255859375,
+        "peak_reserved": 1772.0,
+        "current_allocated": 410.08203125,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "DBLPv7",
+      "target": "ACMv9",
+      "seed": 43,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.6625,
+        "macro_f1": 0.6084213690958306,
+        "prediction_class_counts": {
+          "0": 1558,
+          "1": 3703,
+          "2": 2686,
+          "3": 119,
+          "4": 1294
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 7.69649719260633,
+      "gpu_memory_mib": {
+        "peak_allocated": 1382.87255859375,
+        "peak_reserved": 1772.0,
+        "current_allocated": 410.08203125,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "DBLPv7",
+      "target": "ACMv9",
+      "seed": 44,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.6648504273504273,
+        "macro_f1": 0.5863651593177803,
+        "prediction_class_counts": {
+          "0": 1735,
+          "1": 3457,
+          "2": 2513,
+          "3": 60,
+          "4": 1595
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 7.685756612569094,
+      "gpu_memory_mib": {
+        "peak_allocated": 1382.87255859375,
+        "peak_reserved": 1772.0,
+        "current_allocated": 410.08203125,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "DBLPv7",
+      "target": "ACMv9",
+      "seed": 45,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.6508547008547009,
+        "macro_f1": 0.5981759691610948,
+        "prediction_class_counts": {
+          "0": 1516,
+          "1": 3037,
+          "2": 3487,
+          "3": 121,
+          "4": 1199
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 7.684260342270136,
+      "gpu_memory_mib": {
+        "peak_allocated": 1382.87255859375,
+        "peak_reserved": 1772.0,
+        "current_allocated": 410.08203125,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "DBLPv7",
+      "target": "ACMv9",
+      "seed": 46,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.6585470085470085,
+        "macro_f1": 0.5757581833721019,
+        "prediction_class_counts": {
+          "0": 1604,
+          "1": 3048,
+          "2": 3259,
+          "3": 43,
+          "4": 1406
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 7.660744423978031,
+      "gpu_memory_mib": {
+        "peak_allocated": 1382.87255859375,
+        "peak_reserved": 1772.0,
+        "current_allocated": 410.08203125,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "DBLPv7",
+      "target": "Citationv1",
+      "seed": 42,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.7662003357582541,
+        "macro_f1": 0.691934013551636,
+        "prediction_class_counts": {
+          "0": 2364,
+          "1": 2787,
+          "2": 2151,
+          "3": 135,
+          "4": 1498
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 7.652613524347544,
+      "gpu_memory_mib": {
+        "peak_allocated": 1336.6787109375,
+        "peak_reserved": 1702.0,
+        "current_allocated": 398.9814453125,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "DBLPv7",
+      "target": "Citationv1",
+      "seed": 43,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.7642977056519306,
+        "macro_f1": 0.6948062488148018,
+        "prediction_class_counts": {
+          "0": 2313,
+          "1": 2901,
+          "2": 2129,
+          "3": 152,
+          "4": 1440
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 7.55086921621114,
+      "gpu_memory_mib": {
+        "peak_allocated": 1336.6787109375,
+        "peak_reserved": 1702.0,
+        "current_allocated": 398.9814453125,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "DBLPv7",
+      "target": "Citationv1",
+      "seed": 44,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.7741466144376049,
+        "macro_f1": 0.7262746072566808,
+        "prediction_class_counts": {
+          "0": 2373,
+          "1": 2803,
+          "2": 1994,
+          "3": 235,
+          "4": 1530
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 7.803773798979819,
+      "gpu_memory_mib": {
+        "peak_allocated": 1336.6787109375,
+        "peak_reserved": 1702.0,
+        "current_allocated": 398.9814453125,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "DBLPv7",
+      "target": "Citationv1",
+      "seed": 45,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.7638500279798545,
+        "macro_f1": 0.6989356991007438,
+        "prediction_class_counts": {
+          "0": 2398,
+          "1": 2350,
+          "2": 2606,
+          "3": 176,
+          "4": 1405
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 7.782282788306475,
+      "gpu_memory_mib": {
+        "peak_allocated": 1336.6787109375,
+        "peak_reserved": 1702.0,
+        "current_allocated": 398.9814453125,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    },
+    {
+      "source": "DBLPv7",
+      "target": "Citationv1",
+      "seed": 46,
+      "checks_passed": true,
+      "status": "150_epoch_checks_passed",
+      "evaluation": {
+        "protocol": "Final epoch, all target nodes, external evaluation after fit",
+        "micro_f1": 0.7638500279798545,
+        "macro_f1": 0.682690330642413,
+        "prediction_class_counts": {
+          "0": 2463,
+          "1": 2345,
+          "2": 2469,
+          "3": 119,
+          "4": 1539
+        },
+        "interpretation": "Single-seed final-epoch validation with audited CLI defaults. Not the author target-selected maximum-over-epoch protocol; not a full paper reproduction."
+      },
+      "elapsed_seconds": 7.890022141858935,
+      "gpu_memory_mib": {
+        "peak_allocated": 1336.6787109375,
+        "peak_reserved": 1702.0,
+        "current_allocated": 398.9814453125,
+        "note": "PyTorch allocator statistics for this process; monitoring adds parameter snapshots."
+      }
+    }
+  ]
+}
