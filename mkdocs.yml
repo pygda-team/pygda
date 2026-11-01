@@ -35,6 +35,11 @@ nav:
       - nn/SAGDABase.md
       - nn/SOGABase.md
       - nn/UDAGCNBase.md             
+      - nn/ADAlignBase.md
+      - nn/ImGDAEncoder.md
+      - nn/PALABase.md
+      - nn/SAGABase.md
+      - nn/UAGABase.md
     - pygda.models:
       - models/Overview.md
       - models/BaseGDA.md
@@ -62,6 +67,11 @@ nav:
       - models/TDSS.md
       - models/GraphATA.md
       - models/DGSDA.md
+      - models/ADAlign.md
+      - models/ImGDA.md
+      - models/PALA.md
+      - models/SAGA.md
+      - models/UAGA.md
     - pygda.datasets: 
       - datasets/Overview.md
       - datasets/Airport.md
@@ -75,6 +85,10 @@ nav:
       - datasets/TUGraph.md
       - datasets/Twitch.md
       - datasets/Twitter.md
+      - datasets/ImGDA.md
+      - datasets/PALA.md
+      - datasets/SAGA.md
+      - datasets/UAGA.md
     - pygda.metrics:
       - metrics/Metrics.md
     - pygda.utils:
@@ -85,6 +99,10 @@ nav:
       - utils/Utility.md
   - Benchmarks:
     - benchmark/Overview.md
+    - benchmark/ADAlign.md
+    - benchmark/PALA.md
+    - benchmark/SAGA.md
+    - benchmark/UAGA.md
   - Cheatsheets: 
     - cheatsheet/Dataset Cheatsheet.md
     - cheatsheet/Model Cheatsheet.md

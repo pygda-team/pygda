@@ -27,6 +27,15 @@ logits, labels = model.predict(target_data)
 * **Seamlessly integrated data processing with PyG, ensuring full compatibility with PyG data structures.**
 
 ## :loudspeaker: What's New?
+
+**[11/2026]**. We have added source-code support for five graph domain adaptation models.
+
+- [ADAlign](docs/models/ADAlign.md) (ICLR 2026): adaptive distribution alignment with neural characteristic functions.
+- [ImGDA](docs/models/ImGDA.md) (NeurIPS 2025) and [PALA](docs/models/PALA.md) (IJCAI 2025): class-imbalanced graph domain adaptation.
+- [SAGA](docs/models/SAGA.md) (ICLR 2026): multi-view graph domain adaptation with dynamic view and neighborhood order selection.
+- [UAGA](docs/models/UAGA.md) (AAAI 2025): open-set cross-network node classification.
+- Model-specific data adapters, benchmark scripts, tests and documentation are included. See the linked model guides for data preparation and runtime requirements.
+
 **[08/2025]**. We have added support for very recent graph domain adaptation models.
 - 2 recent models including `TDSS` and `DGSDA` are supported.
 
@@ -143,6 +152,11 @@ In addition to the easy application of existing GDA models, PyGDA makes it simpl
 | 22     | [Smoothness Really Matters: A Simple Yet Effective Approach for Unsupervised Graph Domain Adaptation](https://arxiv.org/abs/2412.11654)      |   TDSS   |   AAAI 2025    |
 | 23     | [Aggregate to Adapt: Node-Centric Aggregation for Multi-Source-Free Graph Domain Adaptation](https://arxiv.org/pdf/2502.03033)      |   GraphATA   |   WWW 2025    |
 | 24     | [Disentangled Graph Spectral Domain Adaptation](https://openreview.net/forum?id=846O8wcn8K)      |   DGSDA   |   ICML 2025    |
+| 25     | [Open-Set Cross-Network Node Classification via Unknown-Excluded Adversarial Graph Domain Alignment](https://ojs.aaai.org/index.php/AAAI/article/view/34247) | UAGA | AAAI 2025 |
+| 26     | [PALA: Class-imbalanced Graph Domain Adaptation via Prototype-anchored Learning and Alignment](https://www.ijcai.org/proceedings/2025/356) | PALA | IJCAI 2025 |
+| 27     | [Dual Prototype-Enhanced Contrastive Framework for Class-Imbalanced Graph Domain Adaptation](https://proceedings.neurips.cc/paper_files/paper/2025/hash/455b24e256981fb97f7a650993c35c98-Abstract-Conference.html) | ImGDA | NeurIPS 2025 |
+| 28     | [Learning Adaptive Distribution Alignment with Neural Characteristic Function for Graph Domain Adaptation](https://openreview.net/forum?id=E22I6z7qFy) | ADAlign | ICLR 2026 |
+| 29     | [SAGA: Structural Aggregation Guided Alignment with Dynamic View and Neighborhood Order Selection for Multiview Graph Domain Adaptation](https://openreview.net/forum?id=hC9Ny8iMLi) | SAGA | ICLR 2026 |
 
 ## Cite
 
@@ -157,3 +171,5 @@ year={2024},
 url={https://openreview.net/forum?id=ZsyFwzuDzD}
 }
 ```
+
+

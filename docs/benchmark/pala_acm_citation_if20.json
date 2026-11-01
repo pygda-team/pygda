@@ -1,0 +1,199 @@
+{
+  "task": "ACMv9 -> Citationv1, IF20",
+  "author_commit": "612b35d059c23b96b4878a6c5e4420bfc6845d11",
+  "pygda_base": "8cef1de93ce67f0e6feb9bbbc61ac15851cd67a6",
+  "evaluation_protocol": "External target oracle best Micro-F1 epoch and paired Macro-F1; final epoch also reported. Population std ddof=0.",
+  "paper_percent": {
+    "micro_mean": 76.18,
+    "micro_std": 1.28,
+    "macro_mean": 66.91,
+    "macro_std": 2.9
+  },
+  "stabilized_author_five_seed": {
+    "aggregate": {
+      "micro_f1_mean": 0.7221264689423615,
+      "micro_f1_std": 0.07055506633404017,
+      "macro_f1_mean": 0.5950428203656458,
+      "macro_f1_std": 0.07119399526409746,
+      "std_ddof": 0
+    },
+    "per_seed": [
+      {
+        "seed": 0,
+        "best_epoch_zero_based": 177,
+        "best_target_micro_f1": 0.7729155008393956,
+        "paired_macro_f1": 0.6444568359382772,
+        "final_epoch": {
+          "micro_f1": 0.7144935646334639,
+          "macro_f1": 0.5892928123090257
+        }
+      },
+      {
+        "seed": 1,
+        "best_epoch_zero_based": 131,
+        "best_target_micro_f1": 0.7687744823726916,
+        "paired_macro_f1": 0.6420254819875229,
+        "final_epoch": {
+          "micro_f1": 0.736205931729155,
+          "macro_f1": 0.6151771949566712
+        }
+      },
+      {
+        "seed": 2,
+        "best_epoch_zero_based": 185,
+        "best_target_micro_f1": 0.591382204812535,
+        "paired_macro_f1": 0.4606420256833307,
+        "final_epoch": {
+          "micro_f1": 0.26054840514829325,
+          "macro_f1": 0.09332393502587485
+        }
+      },
+      {
+        "seed": 3,
+        "best_epoch_zero_based": 107,
+        "best_target_micro_f1": 0.7740346950195859,
+        "paired_macro_f1": 0.6449324113513961,
+        "final_epoch": {
+          "micro_f1": 0.4416340235030778,
+          "macro_f1": 0.30736523789183157
+        }
+      },
+      {
+        "seed": 4,
+        "best_epoch_zero_based": 193,
+        "best_target_micro_f1": 0.7035254616675993,
+        "paired_macro_f1": 0.5831573468677022,
+        "final_epoch": {
+          "micro_f1": 0.5218802462227197,
+          "macro_f1": 0.4087273713681848
+        }
+      }
+    ],
+    "environment": {
+      "torch": "2.4.0+cu124",
+      "torch-geometric": "2.6.1",
+      "torch_scatter": "2.1.2+pt24cu124",
+      "numpy": "1.26.4",
+      "scikit-learn": "1.5.2",
+      "tqdm": "4.66.4"
+    },
+    "provenance": {
+      "report": "PALA_stage6_reference_validation.json",
+      "sha256": "eea96bb1af9eec82984df3b43434d3904307f8fb7ee0ce2cc62126a5a841efea"
+    }
+  },
+  "deterministic_author_wrapper_parity": {
+    "seed": 0,
+    "epochs": 200,
+    "environment": {
+      "torch": "2.4.0+cu124",
+      "torch-geometric": "2.6.1",
+      "torch_scatter": "2.1.2+pt24cu124",
+      "numpy": "1.26.4",
+      "scikit-learn": "1.5.2",
+      "tqdm": "4.66.4"
+    },
+    "per_epoch_loss_and_logits_exact": true,
+    "final_parameters_memory_queue_optimizer_rng_exact": true,
+    "scope": "Isolated PALA submodule imports with the actual BaseGDA/logger, in author dependencies; full public imports tested separately."
+  },
+  "public_pygda_five_seed": {
+    "environment": {
+      "torch": "2.5.1+cu124",
+      "torch-geometric": "2.8.0.post1",
+      "numpy": "2.1.3",
+      "scikit-learn": "1.9.1"
+    },
+    "deterministic": false,
+    "aggregate": {
+      "micro_f1_mean": 0.729423614997202,
+      "micro_f1_std": 0.06217047009208732,
+      "macro_f1_mean": 0.6158684394940566,
+      "macro_f1_std": 0.10036182831210042,
+      "std_ddof": 0
+    },
+    "runs": [
+      {
+        "seed": 0,
+        "best": {
+          "epoch": 166,
+          "micro_f1": 0.7467263570229434,
+          "macro_f1": 0.6250844646723746
+        },
+        "final": {
+          "epoch": 199,
+          "micro_f1": 0.6,
+          "macro_f1": 0.4745437436979728
+        }
+      },
+      {
+        "seed": 1,
+        "best": {
+          "epoch": 128,
+          "micro_f1": 0.7854504756575266,
+          "macro_f1": 0.7561747094827594
+        },
+        "final": {
+          "epoch": 199,
+          "micro_f1": 0.6994963626189143,
+          "macro_f1": 0.5846087319555724
+        }
+      },
+      {
+        "seed": 2,
+        "best": {
+          "epoch": 189,
+          "micro_f1": 0.6086177951874651,
+          "macro_f1": 0.44203003704765786
+        },
+        "final": {
+          "epoch": 199,
+          "micro_f1": 0.5161723559037493,
+          "macro_f1": 0.3449905600000898
+        }
+      },
+      {
+        "seed": 3,
+        "best": {
+          "epoch": 68,
+          "micro_f1": 0.7622831561275881,
+          "macro_f1": 0.634201915822932
+        },
+        "final": {
+          "epoch": 199,
+          "micro_f1": 0.6222719641857862,
+          "macro_f1": 0.5389911795082655
+        }
+      },
+      {
+        "seed": 4,
+        "best": {
+          "epoch": 175,
+          "micro_f1": 0.7440402909904869,
+          "macro_f1": 0.621851070444559
+        },
+        "final": {
+          "epoch": 199,
+          "micro_f1": 0.6663682148852826,
+          "macro_f1": 0.5279357801457989
+        }
+      }
+    ]
+  },
+  "provenance": {
+    "report": "pala-stage9-full-20261021T122146954751Z.json",
+    "sha256": "36808ab56c2703c7c983161d3cda1b2d1bfa90f17f2c43881038e7befbb64699",
+    "runner": "run_pala_stage9_full.py",
+    "runner_sha256": "3aa0ce7022f1ca026a80c8d20ee58d72faa51c0d5eaec24c661db21e728b794d"
+  },
+  "original_official_five_seed_run_failed": true,
+  "numerical_stabilization": "Equivalent logsumexp/logaddexp contrastive reduction; original float32 product overflow documented.",
+  "paper_score_reproduced": false,
+  "full_paper_table_validated": false,
+  "limitations": [
+    "Only ACMv9 -> Citationv1 IF20 has a completed public five-seed benchmark.",
+    "DBLPv7 was absent from the verified release material.",
+    "Default-CUDA long trajectories are not claimed bitwise reproducible.",
+    "The two five-seed results use different library versions; differences do not isolate a causal factor."
+  ]
+}

@@ -77,3 +77,13 @@ predictions = model.predict(test_data)
 ```
 
 For detailed information about each model, please visit their respective documentation pages linked above.
+
+### Additional integrated methods
+
+| Model | API reference |
+| --- | --- |
+| ADAlign | [ADAlign](ADAlign.md) |
+| ImGDA | [ImGDA](ImGDA.md) |
+| PALA | [PALA](PALA.md) |
+| SAGA | [SAGA](SAGA.md) |
+| UAGA | [UAGA](UAGA.md) |
