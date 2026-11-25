@@ -12,7 +12,7 @@ from torch import nn
 from torch_geometric.data import Data
 
 from .base import BaseGDA
-from ..nn.imgda_base import ImGDAEncoder, imgda_objective, make_longtailed_data_remove
+from ..nn.imgda_base import ImGDABase, imgda_objective, make_longtailed_data_remove
 from ..utils import logger
 
 
@@ -298,7 +298,7 @@ class ImGDA(BaseGDA):
             Encoder and classifier on the configured device.
         """
         
-        encoder = ImGDAEncoder(source_data, self.hid_dim, self.dropout, self.in_dim, self.device)
+        encoder = ImGDABase(source_data, self.hid_dim, self.dropout, self.in_dim, self.device)
         classifier = nn.Sequential(nn.Linear(self.hid_dim, self.num_classes)).to(self.device)
         return nn.ModuleDict({'encoder': encoder, 'classifier': classifier})
 

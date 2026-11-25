@@ -148,7 +148,7 @@ class ImGDACompensation(nn.Module):
         return input + self.compensation
 
 
-class ImGDAEncoder(nn.Module):
+class ImGDABase(nn.Module):
     """
     Encode nodes with two convolution layers shared by both graph branches.
 
@@ -174,7 +174,7 @@ class ImGDAEncoder(nn.Module):
     """
 
     def __init__(self, source_data, encoder_dim, drop_out, feature_num, device, **kwargs):
-        super(ImGDAEncoder, self).__init__()
+        super(ImGDABase, self).__init__()
         weights = [None, None]
         biases = [None, None]
         self.dropout_layers = [nn.Dropout(drop_out) for _ in weights]
@@ -508,7 +508,7 @@ def imgda_objective(encoder,
 
     Parameters
     ----------
-    encoder : ImGDAEncoder
+    encoder : ImGDABase
         Shared encoder with registered global caches for both graphs.
     classifier : torch.nn.Module
         Classifier applied to global source embeddings.
