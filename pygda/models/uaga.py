@@ -1,7 +1,6 @@
 import random
 import time
 from types import SimpleNamespace
-import dgl
 import numpy as np
 from sklearn.cluster import KMeans
 import torch
@@ -212,7 +211,8 @@ class UAGA(BaseGDA):
         -----
         Preserves isolated nodes and replaces existing self-loops with one per node.
         """
-        
+        import dgl
+
         graph = dgl.graph((prepared.edge_index[0].cpu(), prepared.edge_index[1].cpu()),
                           num_nodes=len(prepared.x)).to(prepared.x.device)
         return graph.remove_self_loop().add_self_loop()
@@ -240,7 +240,8 @@ class UAGA(BaseGDA):
         Shuffles nodes once, repeats the order to match the larger domain, and
         samples all neighbors for the encoder and classifier.
         """
-       
+        import dgl
+
         order = list(range(graph.num_nodes()))
         np.random.shuffle(order)
         repeated = ((maximum // len(order) + bool(maximum % len(order))) * order)[:maximum]
@@ -411,6 +412,8 @@ class UAGA(BaseGDA):
         source = self.process_graph(source_data, include_labels=True)
         target = self.process_graph(target_data)
         if self.seed is not None:
+            import dgl
+
             random.seed(self.seed)
             dgl.seed(self.seed)
             np.random.seed(self.seed)
