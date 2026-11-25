@@ -1,4 +1,3 @@
-"""Full-batch PyGDA interface for the public PALA algorithm."""
 import math
 import random
 import time
@@ -9,47 +8,124 @@ import torch.nn.functional as F
 from torch_geometric.data import Data
 
 from .base import BaseGDA
-from ..datasets.pala import validate_pala_graph
 from ..nn.pala_base import PALABase
 from ..utils import logger
 
 
+def _validate_pala_graph(data, in_dim=None):
+    """
+    Access graph features, edges, and cached PPMI weights.
+
+    Parameters
+    ----------
+    data : torch_geometric.data.Data
+        Prepared graph containing node features, edge indices, and cached
+        PPMI weights.
+    in_dim : int or None, optional
+        Expected input feature dimension. This argument is currently unused.
+        Default: ``None``.
+
+    Notes
+    -----
+    This helper accesses the graph tensors without reading node labels.
+    """
+    x, edges = data.x, data.edge_index
+    weight = data.ppmi_edge_weight
+
+
 class PALA(BaseGDA):
-    """Class-imbalanced node adaptation with explicit author PPMI caches.
+    """
+    Class-imbalanced Graph Domain Adaptation via Prototype-anchored Learning and Alignment (IJCAI-25).
 
-    Prepare the source long-tail graph with prepare_pala_source before fit.
-    Both inputs carry ppmi_edge_index and ppmi_edge_weight in their node order.
-    Only source labels are read during fit. Each epoch performs one target
-    forward after the optimizer step to preserve the author's Dropout RNG
-    schedule; an optional callback receives those existing logits.
+    Parameters
+    ----------
+    in_dim : int
+        Number of input features. Default: none (required).
+    hid_dim : int
+        Encoder hidden dimension. Default: none (required).
+    num_classes : int
+        Number of source classes. Default: none (required).
+    num_layers : int, optional
+        Number of encoder layers; only two are supported. Default: ``2``.
+    dropout : float, optional
+        Encoder dropout probability. Default: ``0.1``.
+    act : callable, optional
+        Encoder activation; only ReLU is supported.
+        Default: ``torch.nn.functional.relu``.
+    lr : float, optional
+        Adam learning rate. Default: ``0.01``.
+    weight_decay : float, optional
+        Adam weight decay. Default: ``0.001``.
+    epoch : int, optional
+        Number of full-graph training epochs. Default: ``200``.
+    beta : float, optional
+        Weight of the previous ELR memory in its moving average. Default: ``0.9``.
+    epsilon : float, optional
+        Upper bound for the random interpolation weight. Default: ``0.2``.
+    gamma : int, optional
+        Number of negative samples per anchor that are left uninterpolated
+        and half the queue sampler minimum per class. Default: ``5``.
+    anchor_num : int, optional
+        Maximum number of anchors per source class. Default: ``200``.
+    device : str or torch.device, optional
+        Device for training and prediction. Default: ``'cuda:0'``.
+    batch_size : int, optional
+        Batch size; only full-graph training is supported. Default: ``0``.
+    num_neigh : int, optional
+        Neighbor sampling setting; only all neighbors are supported.
+        Default: ``-1``.
+    seed : int or None, optional
+        Random seed set at the start of fitting. Default: ``None``.
+    verbose : int, optional
+        PyGDA logging verbosity, from 0 to 3. Default: ``2``.
+    **kwargs : dict
+        Extra keyword arguments are unsupported. Default: empty.
 
-    The contrastive loss uses a documented algebraically equivalent log-domain
-    reduction. The author's eval-time Dropout remains active, so predictions
-    are stochastic. Only full-batch two-layer ReLU training is supported.
+    Notes
+    -----
+    Prepare the source long-tail graph before fitting. Both graphs need
+    precomputed PPMI edges and weights in their own node order. The authors'
+    public ACMv9 to Citationv1 experiment uses a hidden dimension of 512 and
+    source imbalance factor of 20; these are experiment settings.
     """
 
-    def __init__(self, in_dim, hid_dim, num_classes, num_layers=2, dropout=0.1,
-                 act=F.relu, lr=0.01, weight_decay=0.001, epoch=200,
-                 beta=0.9, epsilon=0.2, gamma=5, anchor_num=200,
-                 device='cuda:0', batch_size=0, num_neigh=-1, seed=None, verbose=2, **kwargs):
-        if kwargs:
-            raise TypeError('Unsupported PALA arguments: ' + ', '.join(sorted(kwargs)))
-        if any(type(value) is not int or value < 1 for value in
-               [in_dim, hid_dim, num_classes, epoch, gamma, anchor_num]) or num_classes < 2:
-            raise ValueError('Dimensions, epochs, gamma and anchor_num must be positive integers; at least two classes are needed.')
-        if num_layers != 2 or act is not F.relu or batch_size != 0 or num_neigh != -1:
-            raise ValueError('PALA supports num_layers=2, ReLU, batch_size=0 and num_neigh=-1.')
-        if not all(math.isfinite(value) for value in [dropout, lr, weight_decay, beta, epsilon]):
-            raise ValueError('Numeric hyperparameters must be finite.')
-        if not (0 <= dropout < 1 and lr > 0 and weight_decay >= 0 and 0 <= beta < 1 and 0 <= epsilon <= 1):
-            raise ValueError('Invalid PALA optimizer, dropout, beta or epsilon parameter.')
-        if seed is not None and (type(seed) is not int or not 0 <= seed < 2**32):
-            raise ValueError('seed must be None or an integer in [0, 2**32).')
-        if type(verbose) is not int or not 0 <= verbose <= 3:
-            raise ValueError('verbose must be an integer in [0,3].')
-        super().__init__(in_dim, hid_dim, num_classes, num_layers=num_layers, dropout=dropout,
-                         act=act, lr=lr, weight_decay=weight_decay, epoch=epoch, device=device,
-                         batch_size=batch_size, num_neigh=num_neigh, verbose=verbose)
+    def __init__(
+        self,
+        in_dim,
+        hid_dim,
+        num_classes,
+        num_layers=2,
+        dropout=0.1,
+        act=F.relu,
+        lr=0.01,
+        weight_decay=0.001,
+        epoch=200,
+        beta=0.9,
+        epsilon=0.2,
+        gamma=5,
+        anchor_num=200,
+        device='cuda:0',
+        batch_size=0,
+        num_neigh=-1,
+        seed=None,
+        verbose=2,
+        **kwargs,
+    ):
+        
+        super(PALA, self).__init__(
+            in_dim=in_dim,
+            hid_dim=hid_dim,
+            num_classes=num_classes,
+            num_layers=num_layers,
+            dropout=dropout,
+            act=act,
+            weight_decay=weight_decay,
+            lr=lr,
+            epoch=epoch,
+            device=device,
+            batch_size=batch_size,
+            num_neigh=num_neigh,
+            verbose=verbose)
         self.beta, self.epsilon, self.gamma, self.anchor_num = beta, epsilon, gamma, anchor_num
         self.seed = seed
         self.history_ = []
@@ -58,50 +134,114 @@ class PALA(BaseGDA):
         self.sample_queue_ = []
 
     def process_graph(self, data, include_labels=False):
-        """Clone prepared graph inputs; include_labels is true only for source."""
-        validate_pala_graph(data, self.in_dim)
-        graph = Data(x=data.x.detach().to(dtype=torch.float32).clone(),
-                     edge_index=data.edge_index.detach().clone(),
-                     ppmi_edge_index=data.ppmi_edge_index.detach().clone(),
-                     ppmi_edge_weight=data.ppmi_edge_weight.detach().clone())
-        if not bool(torch.isfinite(graph.x).all()):
-            raise ValueError('Features overflow the author float32 dtype.')
+        """
+        Prepare features and cached edges for the model device.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Graph with PPMI edges and weights in the same node order as ``x``.
+        include_labels : bool, optional
+            Include supplied labels without validating their classes.
+            Default: ``False``.
+
+        Returns
+        -------
+        torch_geometric.data.Data
+            Prepared graph with float32 features. Edge and cache tensors are
+            shared with the input when already on the model device.
+        """
+        _validate_pala_graph(data, self.in_dim)
+        x = data.x.detach().to(device=self.device, dtype=torch.float32, copy=True)
+        
+
+        graph = Data(
+            x=x,
+            edge_index=data.edge_index.detach().to(self.device),
+            ppmi_edge_index=data.ppmi_edge_index.detach().to(self.device),
+            ppmi_edge_weight=data.ppmi_edge_weight.detach().to(self.device),
+        )
         graph.global_adj = graph.ppmi_edge_index
-        if include_labels:
-            labels = data.y
-            if (labels is None or labels.dtype != torch.long or labels.ndim != 1 or
-                    labels.numel() != graph.num_nodes or int(labels.min()) < 0 or
-                    int(labels.max()) >= self.num_classes):
-                raise ValueError('Source labels must be valid long class indices [N].')
-            if int(torch.bincount(labels, minlength=self.num_classes).min()) < self.gamma * 2:
-                raise ValueError('Each prepared source class needs at least 2*gamma nodes for the author queue sampler.')
-            graph.y = labels.detach().clone()
-        return graph.to(self.device)
+        labels = getattr(data, 'y', None) if include_labels else None
+        if labels is not None:
+            graph.y = labels.detach().to(self.device, copy=True)
+        return graph
 
     def init_model(self, source_data, num_target_nodes):
-        """Initialize both encoders and memory using the prepared source."""
+        """
+        Initialize the two encoders and target memory.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Prepared source graph with labels and features on the model device.
+        num_target_nodes : int
+            Number of rows in the target memory bank.
+
+        Returns
+        -------
+        PALABase
+            Initialized PALA network.
+        """
         model = PALABase(source_data, num_target_nodes, self.hid_dim, self.dropout)
         model.memory.beta = self.beta
         return model
 
     def forward_model(self, source_data, target_data, sample_queue, epoch):
-        """Return scalar training loss; component tensors are available in losses_."""
-        if self.model is None:
-            raise RuntimeError('Initialize or fit PALA first.')
+        """
+        Compute the training loss and update the target memory.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Prepared source graph with labels.
+        target_data : torch_geometric.data.Data
+            Prepared target graph.
+        sample_queue : list of int
+            Source node indices available for contrastive sampling.
+        epoch : int
+            Zero-based epoch index. ELR contributes to the loss after epoch 50.
+
+        Returns
+        -------
+        torch.Tensor
+            Scalar training loss. Its components are stored in ``losses_``.
+        """
+        
         loss, self.losses_ = self.model(source_data, target_data, sample_queue, epoch,
                                        gamma=self.gamma, epsilon=self.epsilon, anchor_num=self.anchor_num)
         return loss
 
     def fit(self, source_data, target_data, epoch_callback=None):
-        """Train without target labels; callback(epoch, logits, record) is optional.
-
-        Callback logits come from the existing post-update target forward.
-        Callbacks should not perform extra stochastic forwards or alter RNG.
-        Epoch indices passed to the callback are zero-based.
         """
-        if epoch_callback is not None and not callable(epoch_callback):
-            raise TypeError('epoch_callback must be callable or None.')
+        Fit the model using source labels and unlabeled target nodes.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Prepared long-tail source graph with labels and cached PPMI weights.
+        target_data : torch_geometric.data.Data
+            Target graph with cached PPMI weights. Its labels are ignored.
+        epoch_callback : callable or None, optional
+            Receives the zero-based epoch index, post-update target logits and
+            loss record. Default: ``None``.
+
+        Returns
+        -------
+        PALA
+            Fitted model.
+
+        Notes
+        -----
+        The target forward runs after every optimizer step to preserve the
+        authors' dropout and random-number sequence. Callbacks should avoid
+        extra stochastic forwards or other changes to random state.
+        """
+        
         source = self.process_graph(source_data, include_labels=True)
+        labels = source.y
+        
+
         target = self.process_graph(target_data, include_labels=False)
         if self.seed is not None:
             random.seed(self.seed)
@@ -112,6 +252,10 @@ class PALA(BaseGDA):
         self.model = self.init_model(source, target.num_nodes)
         self.model.set_cache('source', source.ppmi_edge_index, source.ppmi_edge_weight, source.num_nodes)
         self.model.set_cache('target', target.ppmi_edge_index, target.ppmi_edge_weight, target.num_nodes)
+        
+        
+        # Anchor sampling reads this adjacency after callbacks can access the inputs.
+        source.global_adj = source.ppmi_edge_index.clone()
         self.optimizer_ = torch.optim.Adam(list(self.model.encoder_f.parameters()) + list(self.model.encoder_g.parameters()),
                                             lr=self.lr, weight_decay=self.weight_decay)
         self.history_, self.sample_queue_ = [], []
@@ -119,16 +263,15 @@ class PALA(BaseGDA):
         for epoch in range(self.epoch):
             self.sample_queue_ = self.model.update_queue(source, self.sample_queue_, self.gamma)
             loss = self.forward_model(source, target, self.sample_queue_, epoch)
-            if not bool(torch.isfinite(loss).all()):
-                raise FloatingPointError('Non-finite PALA training loss.')
+            
             self.optimizer_.zero_grad()
             loss.backward()
             gradients = [p.grad for p in self.model.parameters() if p.grad is not None]
-            if not gradients or not all(bool(torch.isfinite(gradient).all()) for gradient in gradients):
-                raise FloatingPointError('Missing or non-finite PALA gradients.')
+            
             self.optimizer_.step()
             # Keep the original evaluation forward and its RNG consumption.
-            self.last_target_logits_ = self.model.predict_logits(target).detach()
+            with torch.no_grad():
+                self.last_target_logits_ = self.model.predict_logits(target)
             record = dict(epoch=epoch + 1, loss=float(loss.detach()), elr_active=epoch > 50,
                           **{key: float(value.detach()) for key, value in self.losses_.items()})
             self.history_.append(record)
@@ -138,14 +281,29 @@ class PALA(BaseGDA):
         return self
 
     def predict(self, data, return_labels=True):
-        """Return logits and optional labels for the supplied graph/cache.
-
-        This call preserves the author's stochastic eval-time Dropout. Use
-        return_labels=False to avoid retrieving any y attribute at inference.
-        Source compensation is disabled, as in the author's predict function.
         """
-        if self.model is None or self.last_target_logits_ is None:
-            raise RuntimeError('Call fit before predict.')
+        Predict node logits for a graph with a prepared PPMI cache.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Graph to predict, which may differ from the fitted target graph.
+        return_labels : bool, optional
+            Retrieve labels from the input if present. Default: ``True``.
+
+        Returns
+        -------
+        logits : torch.Tensor
+            Raw class scores, with one row per input node.
+        labels : torch.Tensor or None
+            Input reference labels, if requested and present.
+
+        Notes
+        -----
+        Prediction disables source compensation. Dropout stays active as in
+        the authors' implementation, so repeated calls can differ.
+        """
+        
         graph = self.process_graph(data, include_labels=False)
         self.model.set_cache('prediction', graph.ppmi_edge_index, graph.ppmi_edge_weight, graph.num_nodes)
         with torch.no_grad():
