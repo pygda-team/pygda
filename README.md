@@ -29,12 +29,7 @@ logits, labels = model.predict(target_data)
 ## :loudspeaker: What's New?
 
 **[11/2026]**. We have added source-code support for five graph domain adaptation models.
-
-- [ADAlign](docs/models/ADAlign.md) (ICLR 2026): adaptive distribution alignment with neural characteristic functions.
-- [ImGDA](docs/models/ImGDA.md) (NeurIPS 2025) and [PALA](docs/models/PALA.md) (IJCAI 2025): class-imbalanced graph domain adaptation.
-- [SAGA](docs/models/SAGA.md) (ICLR 2026): multi-view graph domain adaptation with dynamic view and neighborhood order selection.
-- [UAGA](docs/models/UAGA.md) (AAAI 2025): open-set cross-network node classification.
-- Model-specific data adapters, benchmark scripts, tests and documentation are included. See the linked model guides for data preparation and runtime requirements.
+- 5 recent models including `ADAlign` , `ImGDA` , `SAGA` , `UAGA` and `PALA` are supported.
 
 **[08/2025]**. We have added support for very recent graph domain adaptation models.
 - 2 recent models including `TDSS` and `DGSDA` are supported.
