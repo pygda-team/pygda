@@ -1,12 +1,20 @@
-"""Official CF and sampler, preserved verbatim below; see ADAlign docs for provenance."""
-
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+
+from .a2gnn_base import A2GNNBase
+
 
 class SampleNet(nn.Module):
-    """
-    TNet module for adversarial networks with fixed activation layers and predefined parameters.
+    """Generate frequencies for characteristic-function alignment.
+
+    Parameters
+    ----------
+    feature_dim : int, optional
+        Dimension of each frequency vector. Default: 128.
+    t_batchsize : int, optional
+        Nominal number of output frequencies. Default: 64.
+    t_var : float, optional
+        Gaussian noise variance before sampling. Default: 1.
     """
 
     def __init__(self, feature_dim=128, t_batchsize=64, t_var=1):
@@ -35,7 +43,27 @@ class SampleNet(nn.Module):
             )
 
     def forward(self, device):
-        # Generate white noise
+        """Draw frequencies on the requested device.
+
+        Parameters
+        ----------
+        device : str or torch.device
+            Device for frequency computation and output.
+
+        Returns
+        -------
+        torch.Tensor
+            Frequency vectors with `feature_dim` columns.
+
+        Notes
+        -----
+        The learned path transforms Gaussian noise and repeats the outputs.
+        If the number of learned vectors is zero, it draws Gaussian
+        frequencies directly with variance `t_var / feature_dim`.
+        Both ADAlign training phases use this forward in training mode.
+        Only sampler ascent steps the sampler optimizer, but BatchNorm
+        running statistics update during both phases.
+        """
         if self.t_sigma_num > 0:
             # Initialize the white noise input
             self._t_net_input = torch.randn(
@@ -57,8 +85,35 @@ class SampleNet(nn.Module):
             )
             self._t = self._t.to(device).detach()
         return self._t
-def CF(alpha, beta, source_features, target_features,t):
-    #t = torch.randn((4096, source_features.size(1)), device=source_features.device)
+
+
+def CF(alpha, beta, source_features, target_features, t):
+    """Compute the amplitude and phase discrepancy between two domains.
+
+    Parameters
+    ----------
+    alpha : float
+        Weight of the squared amplitude discrepancy.
+    beta : float
+        Weight of the phase discrepancy.
+    source_features : torch.Tensor
+        Source node embeddings.
+    target_features : torch.Tensor
+        Target node embeddings.
+    t : torch.Tensor
+        Frequencies with the same width as the embeddings.
+
+    Returns
+    -------
+    torch.Tensor
+        Scalar mean of the weighted distances over frequencies.
+
+    Notes
+    -----
+    The author implementation clamps the phase term before taking the
+    square root. The gradients can be singular at zero complex modulus
+    or at zero discrepancy when beta is zero.
+    """
     t_x_real = calculate_real(torch.matmul(t, source_features.t()))
     t_x_imag = calculate_imag(torch.matmul(t, source_features.t()))
     t_x_norm = calculate_norm(t_x_real, t_x_imag)
@@ -81,6 +136,8 @@ def CF(alpha, beta, source_features, target_features,t):
     # Combine losses
     loss = torch.mean(torch.sqrt(alpha * loss_amp + beta * loss_pha))
     return loss
+
+
 def calculate_norm(x_r, x_i):
     return torch.sqrt(torch.mul(x_r, x_r) + torch.mul(x_i, x_i))
 
@@ -92,12 +149,38 @@ def calculate_imag(x):
 def calculate_real(x):
     return torch.mean(torch.cos(x), dim=1)
 
-from .a2gnn_base import A2GNNBase
-
 
 class ADAlignBase(A2GNNBase):
-    """Shared official A2GNN backbone, with no algorithmic changes."""
+    """A2GNN backbone used by ADAlign.
+
+    Parameters
+    ----------
+    in_dim : int
+        Input feature dimension.
+    hid_dim : int
+        Hidden feature dimension.
+    num_classes : int
+        Number of output classes.
+    num_layers : int, optional
+        Number of propagation layers before classification. Default: 1.
+    adv : bool, optional
+        Add the inherited domain classifier. Default: False.
+    dropout : float, optional
+        Dropout probability in the feature bottleneck. Default: 0.1.
+    act : callable, optional
+        Activation after each propagation layer. Default: torch.nn.functional.relu.
+    mode : str, optional
+        Backbone task type. Default: 'node'.
+    **kwargs : dict
+        Additional keywords accepted by A2GNNBase. Default: empty.
+
+    Notes
+    -----
+    The inherited forward takes a PyG graph and a propagation count.
+    It returns class logits after running the bottleneck with that count
+    and the node classifier with one propagation step. CF alignment uses
+    bottleneck embeddings from a separate forward call.
+    """
 
 
 __all__ = ["ADAlignBase", "SampleNet", "CF"]
-

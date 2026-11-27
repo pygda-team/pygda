@@ -1,8 +1,7 @@
-# UAGABase
-
-The UAGA backbone uses DGL GATConv for the encoder and graph classifier.
-Importing this symbol does not load DGL; constructing a backbone requires DGL.
-The parameter names and classifier-first initialization follow the official
-implementation. Reversal coefficients are stored per autograd invocation.
-
-::: pygda.nn.UAGABase
+::: pygda.nn.uaga_base
+    options:
+      docstring_style: numpy
+      show_source: false
+      merge_init_into_class: true
+      ignore_init_summary: true
+      heading_level: 6

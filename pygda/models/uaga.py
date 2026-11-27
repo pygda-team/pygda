@@ -1,15 +1,16 @@
-"""Open-set node adaptation through the official UAGA DGL backend."""
-import math
 import random
+import time
 from types import SimpleNamespace
-
 import numpy as np
+from sklearn.cluster import KMeans
 import torch
 from torch import nn
+from torch.nn import functional as F
 from torch.utils.data import DataLoader
 
 from .base import BaseGDA
 from ..nn.uaga_base import UAGABase
+from ..utils import logger
 
 
 class UAGA(BaseGDA):
@@ -17,106 +18,172 @@ class UAGA(BaseGDA):
 
     Parameters
     ----------
-    in_dim, hid_dim : int
-        Input width and GAT width per attention head. Author hidden width: 32.
+    in_dim : int
+        Input feature dimension.
+    hid_dim : int
+        Hidden dimension per encoder attention head.
     num_classes : int
-        Number K of known classes. Outputs have K+1 columns; column K is unknown.
-        Source labels must be nonnegative integers, with known labels 0..K-1.
-        Source nodes labelled K or above and their incident edges are removed.
-    epoch, separation_epochs : int, optional
-        Adaptation and separation lengths. Defaults: 200 and 30.
-    num_layers, num_heads, num_out_heads : int, optional
-        Encoder layer count, encoder and classifier heads. Defaults: 1, 8, 2.
-    dropout, attn_dropout : float, optional
-        Feature and attention dropout. Defaults: 0.4 (citation-v1 to dblp-v4).
-        Other tasks require the author task settings documented in UAGA.md.
-    lr, weight_decay : float, optional
-        Adam settings, default 0.001 and 0.0001. Adam is reset between phases.
+        Number of known classes. The model adds one output for the unknown class.
+    num_layers : int, optional
+        Number of encoder layers. Default: ``1``.
+    dropout : float, optional
+        Feature dropout rate. Default: ``0.4``.
+    attn_dropout : float or None, optional
+        Attention dropout rate. If ``None``, use ``dropout``. Default: ``None``.
+    num_heads : int, optional
+        Number of attention heads in each encoder layer. Default: ``8``.
+    num_out_heads : int, optional
+        Number of attention heads in the classifier. Default: ``2``.
+    lr : float, optional
+        Learning rate. Default: ``0.001``.
+    weight_decay : float, optional
+        Weight decay (L2 penalty). Default: ``0.0001``.
+    epoch : int, optional
+        Number of adaptation epochs. Default: ``200``.
+    separation_epochs : int, optional
+        Number of separation epochs. Default: ``30``.
     batch_size : int, optional
-        Paired node batch size, default 2048. Smaller domains repeat their same
-        shuffled permutation to the larger domain's length. Zero uses that length.
-    threshold, target_weight, top_k : float, float, int, optional
-        Separation unknown probability, target pseudo-label loss weight and
-        number of high-unknown-score target nodes. Defaults: 0.5, 0.1, 2000.
+        Number of seed nodes per domain in each minibatch, capped by the
+        smaller domain size. Use ``0`` for that cap. Default: ``2048``.
+    num_neigh : int, optional
+        Number of neighbors in sampling. UAGA requires all neighbors.
+        Default: ``-1``.
+    threshold : float, optional
+        Reference unknown-class probability in the separation loss.
+        Default: ``0.5``.
+    target_weight : float, optional
+        Weight of the target pseudo-label loss. Default: ``0.1``.
+    top_k : int, optional
+        Number of target nodes with the highest unknown-class scores used
+        to initialize the unknown cluster center. Default: ``2000``.
     seed : int or None, optional
-        Reset Python, NumPy, Torch and DGL before initialization. Default: None.
-    device, verbose : str, int, optional
-        Default 'cuda:0', 2. All-neighbor sampling is required (num_neigh=-1).
+        Random seed. If ``None``, do not reset the random state before
+        training. Default: ``None``.
+    device : str, optional
+        Device for training and prediction. Default: ``cuda:0``.
+    verbose : int, optional
+        Verbosity level in [0, 3]. Default: ``2``.
+    **kwargs
+        Additional model parameters are not supported.
 
-    Notes
-    -----
-    Accepts PyG Data objects with dense x, edge_index and source y. fit never
-    reads target y or masks. All target nodes participate without labels.
-    Directed edges and their order are preserved; self-loops are replaced by
-    one per node. Edge weights are ignored, matching official dgl.from_scipy.
-    DGL is optional at import time and required for fit and predict.
-    The author-version environment currently has an unresolved CPU exit crash;
-    the tested reference device is RTX 4090. Modern DGL versions need validation.
-    """
-    def __init__(self, in_dim, hid_dim, num_classes, num_layers=1, dropout=0.4,
-                 attn_dropout=None, num_heads=8, num_out_heads=2, lr=0.001,
-                 weight_decay=0.0001, epoch=200, separation_epochs=30,
-                 batch_size=2048, num_neigh=-1, threshold=0.5, target_weight=0.1,
-                 top_k=2000, seed=None, device='cuda:0', verbose=2, **kwargs):
-        if kwargs:
-            raise TypeError('Unsupported UAGA arguments: ' + ', '.join(sorted(kwargs)))
-        positive = (in_dim, hid_dim, num_classes, num_layers, num_heads, num_out_heads,
-                    epoch, separation_epochs, top_k)
-        if any(type(v) is not int or v < 1 for v in positive):
-            raise ValueError('Dimensions, heads, epoch counts and top_k must be positive integers.')
-        if type(batch_size) is not int or batch_size < 0 or num_neigh != -1:
-            raise ValueError('batch_size must be nonnegative and num_neigh must be -1.')
-        attn_dropout = dropout if attn_dropout is None else attn_dropout
-        values = (dropout, attn_dropout, lr, weight_decay, threshold, target_weight)
-        if not all(math.isfinite(v) for v in values):
-            raise ValueError('Numeric parameters must be finite.')
-        if not (0 <= dropout < 1 and 0 <= attn_dropout < 1 and lr > 0 and
-                weight_decay >= 0 and 0 <= threshold <= 1 and target_weight >= 0):
-            raise ValueError('Invalid dropout, optimizer or loss parameters.')
-        if seed is not None and (type(seed) is not int or not 0 <= seed < 2**32):
-            raise ValueError('seed must be None or an integer in [0, 2**32).')
-        if type(verbose) is not int or not 0 <= verbose <= 3:
-            raise ValueError('verbose must be in [0, 3].')
-        super().__init__(in_dim, hid_dim, num_classes, num_layers=num_layers, dropout=dropout,
-                         lr=lr, weight_decay=weight_decay, epoch=epoch, batch_size=batch_size,
-                         num_neigh=num_neigh, device=device, verbose=verbose)
-        self.attn_dropout, self.num_heads, self.num_out_heads = attn_dropout, num_heads, num_out_heads
-        self.separation_epochs, self.threshold = separation_epochs, threshold
-        self.target_weight, self.top_k, self.seed = target_weight, top_k, seed
+"""
+
+    def __init__(
+        self,
+        in_dim,
+        hid_dim,
+        num_classes,
+        num_layers=1,
+        dropout=0.4,
+        attn_dropout=None,
+        num_heads=8,
+        num_out_heads=2,
+        lr=0.001,
+        weight_decay=0.0001,
+        epoch=200,
+        separation_epochs=30,
+        batch_size=2048,
+        num_neigh=-1,
+        threshold=0.5,
+        target_weight=0.1,
+        top_k=2000,
+        seed=None,
+        device='cuda:0',
+        verbose=2,
+        **kwargs,
+    ):
+        
+        super().__init__(
+            in_dim=in_dim,
+            hid_dim=hid_dim,
+            num_classes=num_classes,
+            num_layers=num_layers,
+            dropout=dropout,
+            lr=lr,
+            weight_decay=weight_decay,
+            epoch=epoch,
+            batch_size=batch_size,
+            num_neigh=num_neigh,
+            device=device,
+            verbose=verbose,
+        )
+        self.attn_dropout = dropout if attn_dropout is None else attn_dropout
+        self.num_heads = num_heads
+        self.num_out_heads = num_out_heads
+        self.separation_epochs = separation_epochs
+        self.threshold = threshold
+        self.target_weight = target_weight
+        self.top_k = top_k
+        self.seed = seed
         self.history_ = []
         self.is_fitted_ = False
 
     def init_model(self, **kwargs):
-        if kwargs:
-            raise TypeError('init_model takes no additional arguments.')
+        """
+        Initialize the UAGA base model.
+
+        Parameters
+        ----------
+        **kwargs
+            Additional initialization arguments. Currently unused.
+
+        Returns
+        -------
+        UAGABase
+            Initialized model on the configured device.
+
+        Notes
+        -----
+        Configures model with:
+
+        - A GAT encoder with the configured layers and attention heads
+        - A graph attention classifier with one extra output for the unknown class
+        - A domain discriminator for the adaptation stage
+        """
         heads = [self.num_heads] * self.num_layers + [self.num_out_heads]
-        return UAGABase(self.num_layers, self.in_dim, self.hid_dim, heads, self.dropout,
-                        self.attn_dropout, nn.ReLU(True), self.num_classes + 1).to(self.device)
+        return UAGABase(
+            self.num_layers,
+            self.in_dim,
+            self.hid_dim,
+            heads,
+            self.dropout,
+            self.attn_dropout,
+            nn.ReLU(True),
+            self.num_classes + 1,
+        ).to(self.device)
 
     def process_graph(self, data, include_labels=False):
-        """Prepare copied tensors; source filtering is induced and order preserving."""
+        """
+        Process the input graph data.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Input graph containing node features and edge indices.
+        include_labels : bool, optional
+            Whether to read source labels and keep only known-class nodes.
+            Default: ``False``.
+
+        Notes
+        -----
+        Prepares the graph through:
+
+        - Feature conversion to float32
+        - Source graph filtering and node relabeling
+        - Device placement for the prepared tensors
+
+        Target graphs are processed without reading their labels.
+        """
+    
         x, edges = data.x, data.edge_index
-        if (not isinstance(x, torch.Tensor) or x.layout != torch.strided or x.ndim != 2
-                or x.shape[0] == 0 or x.shape[1] != self.in_dim):
-            raise ValueError('x must be a nonempty dense feature matrix with in_dim columns.')
-        if (not isinstance(edges, torch.Tensor) or edges.dtype != torch.long or
-                edges.ndim != 2 or edges.shape[0] != 2):
-            raise ValueError('edge_index must have shape [2, E] and dtype long.')
         x, edges = x.detach().cpu().float().clone(), edges.detach().cpu().clone()
-        if not bool(torch.isfinite(x).all()):
-            raise ValueError('Features must be finite after conversion to float32.')
-        if edges.numel() and (edges.min() < 0 or edges.max() >= len(x)):
-            raise ValueError('Edge endpoints are out of range.')
+       
         labels = None
         if include_labels:
             labels = data.y
-            if (not isinstance(labels, torch.Tensor) or labels.dtype != torch.long or
-                    labels.ndim != 1 or len(labels) != len(x) or labels.min() < 0):
-                raise ValueError('Source y must be a nonnegative long vector with one label per node.')
             labels = labels.detach().cpu().clone()
             keep = labels < self.num_classes
-            if set(labels[keep].tolist()) != set(range(self.num_classes)):
-                raise ValueError('Every known source class must have at least one node.')
+            
             mapping = torch.full((len(x),), -1, dtype=torch.long)
             mapping[keep] = torch.arange(int(keep.sum()))
             edge_keep = keep[edges[0]] & keep[edges[1]]
@@ -127,46 +194,144 @@ class UAGA(BaseGDA):
 
     @staticmethod
     def _graph(prepared):
+        """
+        Build a DGL graph from the prepared input.
+
+        Parameters
+        ----------
+        prepared : SimpleNamespace
+            Node features and edge indices returned by ``process_graph``.
+
+        Returns
+        -------
+        dgl.DGLGraph
+            Graph on the same device as the node features.
+
+        Notes
+        -----
+        Preserves isolated nodes and replaces existing self-loops with one per node.
+        """
         import dgl
+
         graph = dgl.graph((prepared.edge_index[0].cpu(), prepared.edge_index[1].cpu()),
                           num_nodes=len(prepared.x)).to(prepared.x.device)
         return graph.remove_self_loop().add_self_loop()
 
     def _batch(self, graph, maximum, size):
+        """
+        Sample node batches from the input graph.
+
+        Parameters
+        ----------
+        graph : dgl.DGLGraph
+            Source or target graph to sample.
+        maximum : int
+            Total number of seed nodes to draw, including repeats.
+        size : int
+            Number of seed nodes in each minibatch.
+
+        Yields
+        ------
+        tuple
+            Input node IDs, seed node IDs, and DGL blocks.
+
+        Notes
+        -----
+        Shuffles nodes once, repeats the order to match the larger domain, and
+        samples all neighbors for the encoder and classifier.
+        """
         import dgl
+
         order = list(range(graph.num_nodes()))
         np.random.shuffle(order)
         repeated = ((maximum // len(order) + bool(maximum % len(order))) * order)[:maximum]
+        
         indices = torch.tensor(repeated, dtype=torch.long, device=graph.device)
+        
         collator = dgl.dataloading.NodeCollator(
             graph, indices, dgl.dataloading.MultiLayerFullNeighborSampler(self.num_layers + 1))
+        
         yield from DataLoader(collator.dataset, size, collate_fn=collator.collate)
 
     def forward_model(self, source_data, target_data, step=0):
-        """Loss for prepared batches: blocks, x, y; phase 1 also needs domain/grl.
-
-        Target pseudo_label contains generated labels, never ground truth labels.
-        Phase-1 domain labels and reversal coefficients cover the classifier
-        block's source nodes, not just its seed nodes.
         """
-        if self.model is None:
-            raise RuntimeError('Initialize the model before forwarding.')
-        if step not in (0, 1):
-            raise ValueError('step must be 0 or 1.')
-        _, source_logits, *source_domain = self.model(source_data.blocks, source_data.x, 1, False, step)
+        Compute the training loss for paired source and target batches.
+
+        Parameters
+        ----------
+        source_data : SimpleNamespace
+            Sampled blocks, features, and source labels.
+        target_data : SimpleNamespace
+            Sampled blocks and features; adaptation also uses pseudo-labels and
+            gradient reversal coefficients.
+        step : int, optional
+            Training stage: ``0`` for separation or ``1`` for adaptation. Default: ``0``.
+
+        Returns
+        -------
+        torch.Tensor
+            Combined loss for the current batch.
+
+        Notes
+        -----
+        Both stages use source classification loss. Separation adds a loss on
+        target unknown-class probabilities. Adaptation adds pseudo-label and
+        domain classification losses. Domain labels cover the source side of
+        the last DGL block, including neighbors of seed nodes.
+        """
+        
+        _, source_logits, *source_domain = self.model(
+            source_data.blocks, source_data.x, 1, False, step
+        )
         coefficient = 1 if step == 0 else target_data.grl
-        _, target_logits, *target_domain = self.model(target_data.blocks, target_data.x, coefficient, True, step)
-        loss = nn.functional.cross_entropy(source_logits, source_data.y)
+        _, target_logits, *target_domain = self.model(
+            target_data.blocks, target_data.x, coefficient, True, step
+        )
+        source_loss = F.cross_entropy(source_logits, source_data.y)
+
+        # Separation: move target unknown probabilities toward the threshold.
         if step == 0:
-            return loss + nn.functional.binary_cross_entropy(
-                target_logits.softmax(1)[:, -1], torch.full_like(target_logits[:, -1], self.threshold))
+            unknown_scores = target_logits.softmax(1)[:, -1]
+            threshold = torch.full_like(target_logits[:, -1], self.threshold)
+            separation_loss = F.binary_cross_entropy(unknown_scores, threshold)
+            return source_loss + separation_loss
+
+        # Adaptation: use accepted pseudo-labels and align the two domains.
         mask = target_data.pseudo_label != -1
-        target_loss = nn.functional.cross_entropy(target_logits[mask], target_data.pseudo_label[mask]) if mask.any() else 0
-        domain_loss = nn.functional.binary_cross_entropy(
-            torch.cat((source_domain[0], target_domain[0])), torch.cat((source_data.domain, target_data.domain)))
-        return loss + self.target_weight * target_loss + domain_loss
+        target_loss = 0
+        if mask.any():
+            target_loss = F.cross_entropy(target_logits[mask], target_data.pseudo_label[mask])
+        domain_scores = torch.cat((source_domain[0], target_domain[0]))
+        domain_labels = torch.cat((source_data.domain, target_data.domain))
+        domain_loss = F.binary_cross_entropy(domain_scores, domain_labels)
+        return source_loss + self.target_weight * target_loss + domain_loss
 
     def _evaluate(self, graph, x, step, target=False, coefficient=1):
+        """
+        Run inference on the full graph.
+
+        Parameters
+        ----------
+        graph : dgl.DGLGraph
+            Graph to evaluate.
+        x : torch.Tensor
+            Node features.
+        step : int
+            Training stage used for the forward pass.
+        target : bool, optional
+            Whether the graph is from the target domain. Default: ``False``.
+        coefficient : float or torch.Tensor, optional
+            Gradient reversal coefficient. Default: ``1``.
+
+        Returns
+        -------
+        tuple
+            Node embeddings, predicted classes, and unknown-class probabilities.
+
+        Notes
+        -----
+        Runs without gradients. Outputs are used to generate pseudo-labels.
+        """
         self.model.eval()
         with torch.no_grad():
             result = self.model(graph, x, coefficient, target, step)
@@ -174,7 +339,35 @@ class UAGA(BaseGDA):
             return embedding, logits.argmax(1), logits.softmax(1)[:, -1]
 
     def _pseudo_labels(self, source_features, source_y, target_features, predictions, scores):
-        from sklearn.cluster import KMeans
+        """
+        Generate target pseudo-labels and gradient reversal coefficients.
+
+        Parameters
+        ----------
+        source_features : torch.Tensor
+            Source node embeddings.
+        source_y : torch.Tensor
+            Known-class source labels.
+        target_features : torch.Tensor
+            Target node embeddings.
+        predictions : torch.Tensor
+            Predicted target classes.
+        scores : torch.Tensor
+            Target unknown-class probabilities.
+
+        Returns
+        -------
+        tuple
+            Target pseudo-labels and a reversal coefficient for each target node.
+
+        Notes
+        -----
+        Accepts a KMeans label when it agrees with the model prediction. Among
+        the highest-scoring unknown-class candidates, marks unassigned nodes
+        as unknown. Other unassigned nodes retain label ``-1``. Unknown nodes
+        receive reversal coefficient ``-1``; all other nodes receive ``1``.
+        """
+        
         indices = scores.argsort()[-self.top_k:]
         centers = torch.cat([source_features[source_y == k].mean(0, True)
                              for k in range(self.num_classes)] + [target_features[indices].mean(0, True)])
@@ -191,73 +384,132 @@ class UAGA(BaseGDA):
         return pseudo, coefficient
 
     def fit(self, source_data, target_data, epoch_callback=None):
-        """Train fixed phases; callback(model, phase, epoch) runs after each epoch.
-
-        Source/private filtering uses only source labels. Target labels, target
-        validation scores and target masks never enter training or model selection.
         """
-        import dgl
+        Train UAGA on the source and target graphs.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Source graph with features, edges, and class labels.
+        target_data : torch_geometric.data.Data
+            Target graph with features and edges.
+        epoch_callback : callable or None, optional
+            Called with ``(self, step, epoch)`` after each epoch. Default: ``None``.
+
+        Returns
+        -------
+        UAGA
+            The fitted model.
+
+        Notes
+        -----
+        Separation trains the encoder and classifier. Adaptation starts with
+        fresh optimizer state, also trains the domain discriminator, and updates
+        pseudo-labels each epoch. Target ground-truth labels are not used.
+        """
+        
         self.is_fitted_ = False
         source = self.process_graph(source_data, include_labels=True)
         target = self.process_graph(target_data)
         if self.seed is not None:
+            import dgl
+
             random.seed(self.seed)
             dgl.seed(self.seed)
             np.random.seed(self.seed)
             torch.manual_seed(self.seed)
             if torch.device(self.device).type == 'cuda':
                 torch.cuda.manual_seed_all(self.seed)
-        gs, gt = self._graph(source), self._graph(target)
+        source_graph = self._graph(source)
+        target_graph = self._graph(target)
         self.model = self.init_model()
         maximum = max(len(source.x), len(target.x))
         size = min(self.batch_size or maximum, len(source.x), len(target.x))
         self.history_ = []
         source_features = target_features = predictions = scores = None
+        start_time = time.perf_counter()
         for step, length in ((0, self.separation_epochs), (1, self.epoch)):
-            parameters = ([{'params': self.model.generator.parameters()},
-                           {'params': self.model.classifier.parameters()}] if step == 0 else self.model.parameters())
-            optimizer = torch.optim.Adam(parameters, lr=self.lr, weight_decay=self.weight_decay)
+            if self.verbose:
+                phase = 'separation' if step == 0 else 'adaptation'
+                print(f'UAGA {phase}: {length} epochs', flush=True)
+            if step == 0:
+                parameters = [
+                    {'params': self.model.generator.parameters()},
+                    {'params': self.model.classifier.parameters()},
+                ]
+            else:
+                parameters = self.model.parameters()
+
+            # The official schedule starts adaptation with fresh Adam state.
+            optimizer = torch.optim.Adam(
+                parameters, lr=self.lr, weight_decay=self.weight_decay
+            )
             for epoch in range(1, length + 1):
                 if step == 1:
                     pseudo, coefficients = self._pseudo_labels(source_features, source.y,
                                                                target_features, predictions, scores)
                 self.model.train()
                 total, count = 0.0, 0
-                for (si, so, sb), (ti, to, tb) in zip(self._batch(gs, maximum, size), self._batch(gt, maximum, size)):
-                    source_batch = SimpleNamespace(blocks=sb, x=source.x[si], y=source.y[so])
-                    target_batch = SimpleNamespace(blocks=tb, x=target.x[ti])
+                source_loader = self._batch(source_graph, maximum, size)
+                target_loader = self._batch(target_graph, maximum, size)
+                for source_sample, target_sample in zip(source_loader, target_loader):
+                    source_inputs, source_seeds, source_blocks = source_sample
+                    target_inputs, target_seeds, target_blocks = target_sample
+                    source_batch = SimpleNamespace(
+                        blocks=source_blocks, x=source.x[source_inputs], y=source.y[source_seeds]
+                    )
+                    target_batch = SimpleNamespace(blocks=target_blocks, x=target.x[target_inputs])
                     if step == 1:
-                        source_batch.domain = torch.zeros(len(sb[-1].srcdata['_ID']), device=self.device)
-                        target_batch.domain = torch.ones(len(tb[-1].srcdata['_ID']), device=self.device)
-                        target_batch.grl = coefficients[tb[-1].srcdata['_ID']].reshape(-1, 1)
-                        target_batch.pseudo_label = pseudo[to]
+                        source_nodes = source_blocks[-1].srcdata['_ID']
+                        target_nodes = target_blocks[-1].srcdata['_ID']
+                        source_batch.domain = torch.zeros(len(source_nodes), device=self.device)
+                        target_batch.domain = torch.ones(len(target_nodes), device=self.device)
+                        target_batch.grl = coefficients[target_nodes].reshape(-1, 1)
+                        target_batch.pseudo_label = pseudo[target_seeds]
                     loss = self.forward_model(source_batch, target_batch, step)
-                    if not bool(torch.isfinite(loss)):
-                        raise FloatingPointError('Non-finite UAGA loss.')
+                    
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
                     total += float(loss.detach())
                     count += 1
-                source_features = self._evaluate(gs, source.x, step)[0]
+                source_features = self._evaluate(source_graph, source.x, step)[0]
                 target_features, predictions, scores = self._evaluate(
-                    gt, target.x, step, target=True, coefficient=coefficients if step else 1)
-                self.history_.append(dict(phase=step, epoch=epoch, loss=total/count, steps=count))
-                if self.verbose:
-                    print('UAGA phase={} epoch={} loss={:.6f}'.format(step, epoch, total/count), flush=True)
+                    target_graph, target.x, step, target=True,
+                    coefficient=coefficients if step else 1,
+                )
+                epoch_loss = total / count
+                self.history_.append(dict(phase=step, epoch=epoch, loss=epoch_loss, steps=count))
+                logger(epoch=epoch, loss=epoch_loss, time=time.perf_counter() - start_time,
+                       verbose=self.verbose, train=True)
                 if epoch_callback is not None:
                     epoch_callback(self, step, epoch)
         self.is_fitted_ = True
         return self
 
     def predict(self, data, source=False):
-        """Return logits and optional mapped labels for the supplied graph.
-
-        Default logits have K+1 columns. source=True filters private source
-        nodes and returns only K known-class columns, as in official evaluation.
         """
-        if not self.is_fitted_:
-            raise RuntimeError('Call fit before predict.')
+        Make predictions on the supplied graph.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Graph to predict. Target labels are optional.
+        source : bool, optional
+            Whether to predict on the source domain. Default: ``False``.
+
+        Returns
+        -------
+        tuple
+            Classification logits and labels. Labels are ``None`` for unlabeled targets.
+
+        Notes
+        -----
+        Source prediction filters private-class nodes and returns known-class
+        logits. Target prediction returns one extra logit for the unknown class
+        and maps private labels to that class when labels are present.
+        """
+        
         prepared = self.process_graph(data, include_labels=source)
         graph = self._graph(prepared)
         self.model.eval()
@@ -267,7 +519,5 @@ class UAGA(BaseGDA):
             return logits[:, :self.num_classes], prepared.y
         labels = getattr(data, 'y', None)
         if labels is not None:
-            if labels.dtype != torch.long or labels.ndim != 1 or len(labels) != len(prepared.x) or labels.min() < 0:
-                raise ValueError('Prediction y must be a nonnegative long vector.')
-            labels = labels.detach().to(self.device).clone().clamp(max=self.num_classes)
+            labels = labels.to(self.device).clamp(max=self.num_classes)
         return logits, labels

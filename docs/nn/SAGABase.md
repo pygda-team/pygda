@@ -1,9 +1,7 @@
-# SAGABase
-
-SAGABase retains the public author's network and loss methods, with a class
-rename and unused import cleanup. See [SAGA](../models/SAGA.md) for the input
-interface, public-code scope and known numerical boundaries.
-
 ::: pygda.nn.saga_base
     options:
+      docstring_style: numpy
       show_source: false
+      merge_init_into_class: true
+      ignore_init_summary: true
+      heading_level: 6

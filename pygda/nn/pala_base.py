@@ -1,9 +1,3 @@
-"""PALA core adapted from maxin88scu/PALA, commit 612b35d.
-
-Original Copyright (c) 2025 Machine-xy, MIT License.
-The contrastive reduction uses an equivalent log-domain evaluation to avoid
-the observed float32 overflow. Other published-code conventions are retained.
-"""
 import random
 
 import numpy as np
@@ -27,6 +21,22 @@ class PALAConv(MessagePassing):
     """
 
     def __init__(self, in_channels, out_channels, weight=None, bias=None, **kwargs):
+        """
+        Initialize a convolution that uses registered PPMI weights.
+
+        Parameters
+        ----------
+        in_channels : int
+            Number of input features per node.
+        out_channels : int
+            Number of output features per node.
+        weight : torch.Tensor or None, optional
+            Supplied projection matrix. Default: ``None`` for Glorot initialization.
+        bias : torch.Tensor or None, optional
+            Supplied bias vector. Default: ``None`` for zero initialization.
+        **kwargs : dict
+            Additional options passed to PyG MessagePassing.
+        """
         super().__init__(aggr='add', **kwargs)
         self.in_channels, self.out_channels = in_channels, out_channels
         self.cache_dict = {}
@@ -42,36 +52,125 @@ class PALAConv(MessagePassing):
             self.bias = bias
 
     def forward(self, x, edge_index, use_ppmi=True, cache_name='default_cache', edge_weight=None):
-        if not use_ppmi or edge_weight is not None:
-            raise ValueError('PALA requires explicit cached edge indices and normalization weights.')
-        if cache_name not in self.cache_dict:
-            raise ValueError('Missing PALA cache: ' + cache_name)
+        """
+        Aggregate transformed node features using registered PPMI weights.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input node features of shape [num_nodes, in_channels].
+        edge_index : torch.Tensor
+            Original graph edges. Propagation uses the registered cached edges.
+        use_ppmi : bool, optional
+            Use the PPMI cache. Only True is supported. Default: ``True``.
+        cache_name : str, optional
+            Registered cache key. Default: ``'default_cache'``.
+        edge_weight : torch.Tensor or None, optional
+            Extra edge weights are unsupported. Default: ``None``.
+
+        Returns
+        -------
+        torch.Tensor
+            Aggregated features of shape [num_nodes, out_channels].
+        """
+        
         cached_edges, norm = self.cache_dict[cache_name]
         x = torch.matmul(x, self.weight)
         return self.propagate(cached_edges.to(x.device), x=x, norm=norm.to(x.device))
 
     def message(self, x_j, norm):
+        """
+        Weight the feature message on each cached edge.
+
+        Parameters
+        ----------
+        x_j : torch.Tensor
+            Projected features of the sending nodes.
+        norm : torch.Tensor
+            One cached normalization weight per edge.
+
+        Returns
+        -------
+        torch.Tensor
+            Weighted messages in cached edge order.
+        """
         return norm.view(-1, 1) * x_j
 
     def update(self, aggr_out):
+        """
+        Add the learned bias after aggregation.
+
+        Parameters
+        ----------
+        aggr_out : torch.Tensor
+            Aggregated features for each receiving node.
+
+        Returns
+        -------
+        torch.Tensor
+            Biased node features.
+        """
         return aggr_out + self.bias
 
 
 class PALACompensation(nn.Module):
     def __init__(self, nodes_num, encoder_dim, device):
+        """
+        Initialize one learnable offset for each source node.
+
+        Parameters
+        ----------
+        nodes_num : int
+            Number of prepared source nodes.
+        encoder_dim : int
+            Hidden feature dimension.
+        device : str or torch.device
+            Device for the layer.
+        """
         super(PALACompensation, self).__init__()
         self.compensation = nn.Parameter(torch.FloatTensor(nodes_num, encoder_dim).normal_(-1,1).to(device))
-        self.compensation.requires_grad_(True)
 
     def forward(self, input):
+        """
+        Add node-specific offsets.
+
+        Parameters
+        ----------
+        input : torch.Tensor
+            Features of the prepared source nodes in training order.
+
+        Returns
+        -------
+        torch.Tensor
+            Source features with the learned offsets added.
+        """
         return input + self.compensation
 
 class PALAGNN(nn.Module):
     def __init__(self, source_data, encoder_dim, drop_out, feature_num, device, **kwargs):
+        """
+        Initialize the two-layer compensated graph encoder.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Prepared long-tail source graph.
+        encoder_dim : int
+            Hidden feature dimension.
+        drop_out : float
+            Dropout probability between convolution layers.
+        feature_num : int
+            Number of input features.
+        device : str or torch.device
+            Device for the layer.
+        **kwargs : dict
+            Additional message-passing options passed to the convolution layers.
+        """
         super(PALAGNN, self).__init__()
         weights = [None, None]
         biases = [None, None]
 
+        # A plain list keeps dropout active during evaluation, as in the author code.
         self.dropout_layers = [nn.Dropout(drop_out) for _ in weights]
 
         self.compensation_layers = nn.ModuleList(
@@ -84,9 +183,31 @@ class PALAGNN(nn.Module):
             PALAConv(encoder_dim, encoder_dim, weight=weights[1], bias = biases[1], **kwargs),
         ]).to(device)
 
-    def forward(self, x, edge_index, cache_name, compensate, device, use_ppmi = True):
+    def forward(self, x, edge_index, cache_name, compensate, device, use_ppmi=True):
+        """
+        Extract node embeddings with cached graph propagation.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input node features in the registered cache order.
+        edge_index : torch.Tensor
+            Original graph edges. Propagation uses the registered cached edges.
+        cache_name : str
+            Registered PPMI cache key.
+        compensate : bool
+            Apply offsets for the prepared source nodes during training.
+        device : str or torch.device
+            Device for the layer.
+        use_ppmi : bool, optional
+            Use cached PPMI propagation. Default: ``True``.
+
+        Returns
+        -------
+        torch.Tensor
+            Node embeddings from the second convolution.
+        """
         x = x.to(device)
-        edge_index = edge_index.to(device)
         for i, conv_layer in enumerate(self.conv_layers):
             x = conv_layer(x, edge_index, use_ppmi = use_ppmi, cache_name= cache_name)
             if compensate:
@@ -98,6 +219,24 @@ class PALAGNN(nn.Module):
 
 class PALAEncoder(nn.Module):
     def __init__(self,source_data, encoder_dim,drop_out,feature_num,device,**kwargs):
+        """
+        Initialize the backbone, class prototypes, and classifier.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Prepared long-tail source graph with labels for sizing the classifier.
+        encoder_dim : int
+            Hidden feature dimension.
+        drop_out : float
+            Dropout probability between convolution layers.
+        feature_num : int
+            Number of input features.
+        device : str or torch.device
+            Device for the layer.
+        **kwargs : dict
+            Additional message-passing options passed to the convolution layers.
+        """
         super(PALAEncoder,self).__init__()
 
         self.GCNConv = PALAGNN(source_data,encoder_dim,drop_out,feature_num,device,**kwargs)
@@ -106,7 +245,32 @@ class PALAEncoder(nn.Module):
         self.classifier = nn.Linear(encoder_dim,self.num_prototypes)
 
 
-    def forward(self, x, edge_index, cache_name, compensate,device,use_ppmi=True):
+    def forward(self, x, edge_index, cache_name, compensate, device, use_ppmi=True):
+        """
+        Compute node embeddings and class logits.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input node features in the registered cache order.
+        edge_index : torch.Tensor
+            Original graph edges. Propagation uses the registered cached edges.
+        cache_name : str
+            Registered PPMI cache key.
+        compensate : bool
+            Apply offsets for the prepared source nodes during training.
+        device : str or torch.device
+            Device for the layer.
+        use_ppmi : bool, optional
+            Use cached PPMI propagation. Default: ``True``.
+
+        Returns
+        -------
+        embeddings : torch.Tensor
+            Node features from the graph encoder.
+        logits : torch.Tensor
+            Raw classifier scores in input node order.
+        """
         embedding = self.GCNConv(x, edge_index, cache_name, compensate,device,use_ppmi=use_ppmi)
         logits = self.classifier(embedding)
 
@@ -114,14 +278,44 @@ class PALAEncoder(nn.Module):
 
 class PALAMemory(nn.Module):
     def __init__(self,num_nodes,num_class,device,beta = 0.9,temperature=0.5):
+        """
+        Initialize the early learning regularization memory.
+
+        Parameters
+        ----------
+        num_nodes : int
+            Number of target nodes stored in the memory.
+        num_class : int
+            Number of source classes represented by the prototypes.
+        device : str or torch.device
+            Device for the layer.
+        beta : float, optional
+            Weight of the previous memory in the moving average. Default: ``0.9``.
+        temperature : float, optional
+            Temperature for prototype similarity. Default: ``0.5``.
+        """
         super(PALAMemory,self).__init__()
 
         self.register_buffer('memory_bank', torch.zeros((num_nodes,num_class)).to(device))
         self.beta = beta
         self.temperature = temperature
 
-    def forward(self,target_feature,prototypes):
+    def forward(self, target_feature, prototypes):
+        """
+        Update the target memory and compute the ELR loss.
 
+        Parameters
+        ----------
+        target_feature : torch.Tensor
+            Target node embeddings in memory row order.
+        prototypes : torch.Tensor
+            One source prototype per class in label order.
+
+        Returns
+        -------
+        torch.Tensor
+            Scalar ELR loss computed using the updated memory.
+        """
         target_feature_nor = F.normalize(target_feature,dim=1)
         prototypes_nor = F.normalize(prototypes,dim=1)
 
@@ -138,9 +332,34 @@ class PALAMemory(nn.Module):
 
 def make_longtailed_data_remove(edge_index, label, n_data, n_cls, ratio, train_mask):
     """
-    make long-tailed data by removing nodes sequentially
-    method comes form paper 'GraphENS: Neighbor-Aware Ego Network Synthesis for Class-Imbalanced Node Classification'
-    code:https://github.com/JoonHyung-Park/GraphENS
+    Build a long-tail training mask by removing low-degree nodes.
+
+    Parameters
+    ----------
+    edge_index : torch.Tensor
+        Original graph edge endpoints of shape [2, E].
+    label : torch.Tensor
+        Class index for each original graph node.
+    n_data : sequence of int
+        Number of eligible training nodes per class.
+    n_cls : int
+        Number of source classes.
+    ratio : float
+        Requested imbalance factor between the largest and smallest classes.
+    train_mask : torch.Tensor
+        Boolean mask of nodes initially eligible for training.
+
+    Returns
+    -------
+    tuple
+        Class counts, retained training mask, per-class node indices, retained node
+        mask, and retained edge mask.
+
+    Notes
+    -----
+    The low-degree removal procedure comes from GraphENS (Neighbor-Aware Ego Network
+    Synthesis for Class-Imbalanced Node Classification). See
+    https://github.com/JoonHyung-Park/GraphENS.
     """
     # sort from major to minor
     n_data = torch.tensor(n_data)
@@ -174,14 +393,10 @@ def make_longtailed_data_remove(edge_index, label, n_data, n_cls, ratio, train_m
     remove_class_num_list = [n_data[i].item() - class_num_list[i] for i in range(n_cls)]
     remove_idx_list = [[] for _ in range(n_cls)]
     cls_idx_list = []
-    index_list = torch.arange(len(train_mask))
-    original_mask = train_mask.clone()
-
-    device = label.device
-    index_list = index_list.to(device)
+    index_list = torch.arange(len(train_mask), device=label.device)
 
     for i in range(n_cls):
-        cls_idx_list.append(index_list[(label == i) & original_mask])
+        cls_idx_list.append(index_list[(label == i) & train_mask])
     # compute remove nodes index
     for i in indices.numpy():
         for r in range(1,n_round[i]+1):
@@ -196,7 +411,8 @@ def make_longtailed_data_remove(edge_index, label, n_data, n_cls, ratio, train_m
             edge_mask = row_mask & col_mask
 
             # compute degree
-            degree = scatter_add(torch.ones_like(col[edge_mask]), col[edge_mask], dim_size = label.size(0)).to(row.device)
+            retained_cols = col[edge_mask]
+            degree = scatter_add(torch.ones_like(retained_cols), retained_cols, dim_size=label.size(0))
             degree = degree[cls_idx_list[i]]
 
             # remove low degree nodes first
@@ -224,7 +440,22 @@ def make_longtailed_data_remove(edge_index, label, n_data, n_cls, ratio, train_m
 
 def sampling_anchor_nodes(data, k, use_ppmi = True):
     """
-    sampling anchor nodes for each class according to degrees
+    Select the highest-degree source anchors in each class.
+
+    Parameters
+    ----------
+    data : torch_geometric.data.Data
+        Source graph with node labels and adjacency.
+    k : int
+        Maximum number of anchors to select per class.
+    use_ppmi : bool, optional
+        Rank by cached PPMI adjacency degree when True and original edge degree
+        otherwise. Default: ``True``.
+
+    Returns
+    -------
+    list of int
+        Selected source node indices.
     """
     labels = data.y
     anchor_nodes = []
@@ -233,7 +464,7 @@ def sampling_anchor_nodes(data, k, use_ppmi = True):
     # sampling by using ppmi matrix
     if use_ppmi:
         for label in label_class:
-            class_nodes = (labels == label).nonzero().squeeze()
+            class_nodes = (labels == label).nonzero(as_tuple=True)[0]
             degrees = torch_geometric.utils.degree(data.global_adj[0], num_nodes = data.num_nodes)
             _, sorted_indices = torch.sort(degrees[class_nodes], descending=True)
             anchor_nodes.extend(class_nodes[sorted_indices[:k]].tolist())
@@ -241,7 +472,7 @@ def sampling_anchor_nodes(data, k, use_ppmi = True):
     # sampling by using adjacent matrix
     else:
         for label in label_class:
-            class_nodes = (labels == label).nonzero().squeeze()
+            class_nodes = (labels == label).nonzero(as_tuple=True)[0]
             degrees = torch_geometric.utils.degree(data.edge_index[0], num_nodes = data.num_nodes)
             _, sorted_indices = torch.sort(degrees[class_nodes], descending=True)
             anchor_nodes.extend(class_nodes[sorted_indices[:k]].tolist())
@@ -250,11 +481,32 @@ def sampling_anchor_nodes(data, k, use_ppmi = True):
 
 def get_new_cl_samples(distance,gamma,encoded_q,prototype,epsilon,positive=True):
     """
-    get contrastive learning samples for each node
+    Build positive or negative contrastive samples per anchor.
+
+    Parameters
+    ----------
+    distance : torch.Tensor
+        Anchor-to-query distances. The positive branch uses only the row count.
+    gamma : int
+        Half the number of samples per anchor.
+    encoded_q : torch.Tensor
+        Embeddings of the candidate query nodes.
+    prototype : torch.Tensor
+        Reference prototype used for interpolation.
+    epsilon : float
+        Upper bound for the random interpolation weight.
+    positive : bool, optional
+        Interpolate positive queries in queue order when True. Otherwise rank by largest
+        distance and interpolate the latter half. Default: ``True``.
+
+    Returns
+    -------
+    torch.Tensor
+        Sample embeddings of shape [num_anchors, 2 * gamma, hidden_dim].
     """
     n = distance.shape[0]
     m,k=encoded_q.size()
-    new_cl_samples = torch.zeros(n,gamma*2,k).to(encoded_q.device)
+    new_cl_samples = torch.zeros(n, gamma * 2, k, device=encoded_q.device)
     z = encoded_q.size(0) - 1
     epsilon1=random.uniform(0,epsilon)
 
@@ -285,7 +537,19 @@ def get_new_cl_samples(distance,gamma,encoded_q,prototype,epsilon,positive=True)
 
 def compute_cluster_centers(logits, features):
     """
-    calculate cluster centers in a non-parametric way
+    Compute target cluster centers from classifier scores.
+
+    Parameters
+    ----------
+    logits : torch.Tensor
+        Raw class logits used as weights, one column per class.
+    features : torch.Tensor
+        Target node embeddings in the same row order as the logits.
+
+    Returns
+    -------
+    torch.Tensor
+        One weighted center per class.
     """
     n, num_classes = logits.shape
     _, d = features.shape
@@ -308,7 +572,25 @@ def compute_cluster_centers(logits, features):
 
 def align_loss(encoded_target,prototypes, logits_t,labels,temperature=0.5):
     """
-    contrastive alignment loss
+    Align target embeddings with source prototypes.
+
+    Parameters
+    ----------
+    encoded_target : torch.Tensor
+        Target node embeddings.
+    prototypes : torch.Tensor
+        Source prototypes in label order.
+    logits_t : torch.Tensor
+        Raw target class logits used to estimate cluster centers.
+    labels : torch.Tensor
+        Source labels used to determine the class count.
+    temperature : float, optional
+        Temperature for cosine similarities. Default: ``0.5``.
+
+    Returns
+    -------
+    torch.Tensor
+        Contrastive alignment loss averaged over source classes.
     """
     num_class = labels.max().item() + 1
     centers = compute_cluster_centers(logits_t, encoded_target)
@@ -341,7 +623,31 @@ def align_loss(encoded_target,prototypes, logits_t,labels,temperature=0.5):
 
 def prototype_contrastive_loss(encoded_f,encoded_g,anchor_nodes,query_nodes,prototypes,epsilon,labels,gamma):
     """
-    prototype-anchored learning
+    Compute the source prototype contrastive loss in the log domain.
+
+    Parameters
+    ----------
+    encoded_f : torch.Tensor
+        Source embeddings from the first encoder.
+    encoded_g : torch.Tensor
+        Source embeddings from the second encoder in the same node order.
+    anchor_nodes : list of int
+        Source anchor node indices.
+    query_nodes : list of int
+        Source queue indices used as contrastive candidates.
+    prototypes : torch.Tensor
+        Learned source prototypes in label order.
+    epsilon : float
+        Upper bound for the random interpolation weight.
+    labels : torch.Tensor
+        Source node class indices.
+    gamma : int
+        Half the number of samples in each contrastive group.
+
+    Returns
+    -------
+    torch.Tensor
+        Scalar loss averaged over source classes.
     """
     num_class = labels.max().item() + 1
 
@@ -371,10 +677,9 @@ def prototype_contrastive_loss(encoded_f,encoded_g,anchor_nodes,query_nodes,prot
 
         neg_l2_norm = torch.matmul((torch.norm(encoded_cl_g, p=2, dim=1,keepdim = True)), (torch.norm(encoded_f_nor[neg_nodes_q],p=2,dim=1,keepdim=True)).T)
         neg_distance = 1-torch.matmul(encoded_cl_g,encoded_f_nor[neg_nodes_q].T) / neg_l2_norm
-        pos_distance = neg_distance.clone()
 
         # get negative/positive CL samples
-        new_pos_samples = get_new_cl_samples(pos_distance,gamma,encoded_f[pos_nodes_q],new_prototypes[label],epsilon,positive=True)
+        new_pos_samples = get_new_cl_samples(neg_distance,gamma,encoded_f[pos_nodes_q],new_prototypes[label],epsilon,positive=True)
         new_neg_samples = get_new_cl_samples(neg_distance,gamma,encoded_f[neg_nodes_q],neg_prototype_mean,epsilon,positive=False)
 
         new_pos_samples_nor = F.normalize(new_pos_samples,dim=1)
@@ -394,7 +699,30 @@ def prototype_contrastive_loss(encoded_f,encoded_g,anchor_nodes,query_nodes,prot
 
 def update_sample_queue(data, cache_name, models,last_sample_queue,gamma):
     """
-    update sample queue each epoch
+    Refresh the source queue from misclassified nodes.
+
+    Parameters
+    ----------
+    data : torch_geometric.data.Data
+        Prepared source graph with labels.
+    cache_name : str
+        Registered source PPMI cache key.
+    models : list of PALAEncoder
+        Encoders put in evaluation mode. The first supplies the logits.
+    last_sample_queue : list of int
+        Previous queue used to supplement classes with too few nodes.
+    gamma : int
+        Half the class count used as the backfill threshold.
+
+    Returns
+    -------
+    list of int
+        Updated queue of source node indices.
+
+    Notes
+    -----
+    Classes below the threshold reuse previous queue entries when available, or draw a
+    new class sample. Evaluation leaves the authors’ dropout active.
     """
     for model in models:
         model.eval()
@@ -411,8 +739,7 @@ def update_sample_queue(data, cache_name, models,last_sample_queue,gamma):
     sample_num = gamma * 2
     for label in range(num_class):
         class_nodes = [node for node in sample_queue if labels[node].item() == label]
-        if len(last_sample_queue) >= 0 :
-            last_class_nodes = [node for node in last_sample_queue if labels[node] == label]
+        last_class_nodes = [node for node in last_sample_queue if labels[node] == label]
         if len(class_nodes) < sample_num:
             if len(last_class_nodes) >= sample_num:
                 nodes = [node for node in last_class_nodes if node not in class_nodes]
@@ -425,15 +752,41 @@ def update_sample_queue(data, cache_name, models,last_sample_queue,gamma):
     return sample_queue
 
 class PALABase(nn.Module):
-    """Two author encoders and target memory for prepared, full-batch graphs.
+    """
+    Class-imbalanced Graph Domain Adaptation via Prototype-anchored Learning and Alignment (IJCAI-25).
 
-    Source input contains the already selected long-tail training nodes.
-    Target input needs only features and edges. Class count comes from source.
-    Dropout deliberately follows the author's ordinary-list behavior: eval()
-    leaves it active, so evaluation calls affect the subsequent RNG trajectory.
+    Parameters
+    ----------
+    source_data : torch_geometric.data.Data
+        Prepared long-tail source graph. Its labels determine the class count.
+    num_target_nodes : int
+        Number of nodes in the target graph used to size the ELR memory.
+    hid_dim : int, optional
+        Hidden dimension of each encoder. Default: ``512``.
+    dropout : float, optional
+        Dropout probability between the two convolution layers. Default: ``0.1``.
+
+    Notes
+    -----
+    The authors store dropout layers in a plain list, so they remain active
+    in evaluation mode and consume random numbers during prediction.
     """
 
     def __init__(self, source_data, num_target_nodes, hid_dim=512, dropout=0.1):
+        """
+        Initialize both graph encoders and the target memory.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Prepared source graph with features and labels.
+        num_target_nodes : int
+            Number of rows in the target memory.
+        hid_dim : int, optional
+            Encoder hidden dimension. Default: ``512``.
+        dropout : float, optional
+            Dropout probability between convolution layers. Default: ``0.1``.
+        """
         super().__init__()
         device = source_data.x.device
         classes = int(source_data.y.max()) + 1
@@ -442,28 +795,89 @@ class PALABase(nn.Module):
         self.memory = PALAMemory(num_target_nodes, classes, device)
 
     def set_cache(self, name, edge_index, norm, num_nodes):
-        """Copy a validated cache, preserving its edge order and signed weights."""
-        if not isinstance(name, str) or not name:
-            raise ValueError('Cache names must be nonempty strings.')
-        if (edge_index.dtype != torch.long or edge_index.ndim != 2 or edge_index.shape[0] != 2 or
-                norm.dtype != torch.float32 or norm.ndim != 1 or norm.numel() != edge_index.shape[1]):
-            raise ValueError('Expected long [2,E] cached edges and float32 [E] weights.')
-        if not bool(torch.isfinite(norm).all()) or (edge_index.numel() and
-                (int(edge_index.min()) < 0 or int(edge_index.max()) >= num_nodes)):
-            raise ValueError('Cache has non-finite weights or invalid endpoints.')
+        """
+        Register an independent copy of the PPMI cache for both encoders.
+
+        Parameters
+        ----------
+        name : str
+            Cache key used when encoding the graph.
+        edge_index : torch.Tensor
+            Cached edge endpoints in the graph's node order, shape [2, E].
+        norm : torch.Tensor
+            Cached float32 edge weights, shape [E]. Signed values are retained.
+        num_nodes : int
+            Number of nodes used to validate edge endpoints.
+        """
+
         cache = (edge_index.detach().clone(), norm.detach().clone())
         for encoder in [self.encoder_f, self.encoder_g]:
             for layer in encoder.GCNConv.conv_layers:
                 layer.cache_dict[name] = cache
 
     def update_queue(self, source_data, previous_queue, gamma=5, cache_name='source'):
-        """Run the original queue update, including its stochastic eval forward."""
+        """
+        Update the source queue using misclassified nodes and class backfill.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Prepared source graph with labels.
+        previous_queue : list of int
+            Source node indices retained from the previous epoch.
+        gamma : int, optional
+            Half the minimum number of queued nodes per class. Default: ``5``.
+        cache_name : str, optional
+            Registered source cache key. Default: ``'source'``.
+
+        Returns
+        -------
+        list of int
+            Source node indices available for sampling in this epoch.
+        """
         return update_sample_queue(source_data, cache_name,
                                    [self.encoder_f, self.encoder_g], previous_queue, gamma)
 
     def forward(self, source_data, target_data, sample_queue, epoch,
                 gamma=5, epsilon=0.2, anchor_num=200,
                 source_cache='source', target_cache='target'):
+        """
+        Compute the full-graph training loss and update the target memory.
+
+        Parameters
+        ----------
+        source_data : torch_geometric.data.Data
+            Prepared source graph with labels and cached PPMI adjacency.
+        target_data : torch_geometric.data.Data
+            Prepared target graph. Its labels are unused.
+        sample_queue : list of int
+            Source node indices used for contrastive sampling.
+        epoch : int
+            Zero-based training epoch index.
+        gamma : int, optional
+            Half the number of samples in each contrastive group. Default: ``5``.
+        epsilon : float, optional
+            Upper bound for the random interpolation weight. Default: ``0.2``.
+        anchor_num : int, optional
+            Maximum number of source anchors per class. Default: ``200``.
+        source_cache : str, optional
+            Registered cache key for the source graph. Default: ``'source'``.
+        target_cache : str, optional
+            Registered cache key for the target graph. Default: ``'target'``.
+
+        Returns
+        -------
+        loss : torch.Tensor
+            Combined training loss.
+        components : dict of str to torch.Tensor
+            Individual classification, prototype, alignment and ELR losses.
+
+        Notes
+        -----
+        Both encoders process the source with node compensation. Only the
+        first encoder processes the target, with compensation disabled. The
+        target memory updates every epoch; ELR enters the loss after epoch 50.
+        """
         self.encoder_f.train()
         self.encoder_g.train()
         device = source_data.x.device
@@ -483,6 +897,21 @@ class PALABase(nn.Module):
         return loss, dict(classification=ce, prototype=p_loss, alignment=alignment, elr=elr)
 
     def predict_logits(self, data, cache_name='target'):
+        """
+        Predict node logits with the first encoder and no source compensation.
+
+        Parameters
+        ----------
+        data : torch_geometric.data.Data
+            Graph whose node order matches the registered cache.
+        cache_name : str, optional
+            Registered cache key. Default: ``'target'``.
+
+        Returns
+        -------
+        torch.Tensor
+            Raw class logits of shape [num_nodes, num_classes].
+        """
         self.encoder_f.eval()
         self.encoder_g.eval()
         return self.encoder_f(data.x, data.edge_index, cache_name, False, data.x.device)[1]

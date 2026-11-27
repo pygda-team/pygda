@@ -25,7 +25,7 @@ from .node_centric_conv import NodeCentricConv, NodeCentricMLP
 from .graphata_base import GraphATABase
 from .dgsda_base import DGSDABase
 from .adalign_base import ADAlignBase
-from .imgda_base import ImGDAEncoder
+from .imgda_base import ImGDABase
 from .pala_base import PALABase
 from .saga_base import SAGABase
 from .uaga_base import UAGABase
@@ -59,7 +59,7 @@ __all__ = [
     "GraphATABase",
     "DGSDABase",
     "ADAlignBase",
-    "ImGDAEncoder",
+    "ImGDABase",
     "PALABase",
     "SAGABase",
     "UAGABase",

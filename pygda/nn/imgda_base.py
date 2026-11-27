@@ -1,12 +1,3 @@
-"""ImGDA numerical core adapted from maxin88scu/ImGDA, commit d4237cd.
-
-Copyright (c) 2026 maxin88scu. Licensed under MIT; see the accompanying license.
-
-This candidate preserves the released objectives and ordinary-list Dropout
-behavior. Precomputed global edges and normalized weights must be supplied
-explicitly. Cache file I/O and random-walk fallback are excluded. No normalized
-cache weights are clamped or normalized again.
-"""
 import torch
 from torch import nn
 from torch.nn import Parameter
@@ -18,20 +9,50 @@ from torch_geometric.nn.conv import MessagePassing
 from torch_geometric.nn.inits import glorot, zeros
 from torch_geometric.utils import add_remaining_self_loops
 
-class ImGDAConv(MessagePassing):
 
-    def __init__(self, in_channels, out_channels, weight=None, bias=None, improved=False, use_bias=True, **kwargs):
+class ImGDAConv(MessagePassing):
+    """
+    Propagate node features over local edges or a cached global graph.
+
+    Parameters
+    ----------
+    in_channels : int
+        Input feature dimension.
+    out_channels : int
+        Output feature dimension.
+    weight : torch.nn.Parameter or None, optional
+        Shared projection weight. Default: ``None``.
+    bias : torch.nn.Parameter or None, optional
+        Shared output bias. Default: ``None``.
+    improved : bool, optional
+        Use weight 2 for added local self-loops. Default: ``False``.
+    use_bias : bool, optional
+        Learn a bias if none is supplied. Default: ``True``.
+    **kwargs : dict
+        Additional arguments for PyG's message passing layer.
+    """
+
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 weight=None,
+                 bias=None,
+                 improved=False,
+                 use_bias=True,
+                 **kwargs):
         super().__init__(aggr='add', **kwargs)
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.improved = improved
         self.cache_dict = {}
+
         if weight is None:
             self.weight = Parameter(torch.Tensor(in_channels, out_channels).to(torch.float32))
             glorot(self.weight)
         else:
             self.weight = weight
             print('use shared weight')
+
         if bias is None:
             if use_bias:
                 self.bias = Parameter(torch.Tensor(out_channels).to(torch.float32))
@@ -44,10 +65,13 @@ class ImGDAConv(MessagePassing):
 
     @staticmethod
     def norm2(edge_index, num_nodes, edge_weight=None, improved=False, dtype=None):
+        """Add missing local self-loops and return edges with normalized weights."""
         if edge_weight is None:
             edge_weight = torch.ones((edge_index.size(1),), dtype=dtype, device=edge_index.device)
         fill_value = 1 if not improved else 2
-        edge_index, edge_weight = add_remaining_self_loops(edge_index, edge_weight, fill_value, num_nodes)
+        edge_index, edge_weight = add_remaining_self_loops(
+            edge_index, edge_weight, fill_value, num_nodes
+        )
         row, col = edge_index
         deg = scatter_add(edge_weight, row, dim=0, dim_size=num_nodes)
         deg_inv_sqrt = deg.pow(-0.5)
@@ -63,17 +87,33 @@ class ImGDAConv(MessagePassing):
         return aggr_out
 
     def set_global_cache(self, name, edge_index, norm):
-        if edge_index.dtype != torch.long or edge_index.ndim != 2 or edge_index.size(0) != 2:
-            raise ValueError('Global cache edge_index must be a [2, E] long tensor.')
-        if norm.ndim != 1 or norm.numel() != edge_index.size(1) or not torch.isfinite(norm).all():
-            raise ValueError('Global cache requires one finite normalized weight per edge.')
+        """Store global edges and their precomputed normalized weights under a name."""
         self.cache_dict[name] = (edge_index, norm)
 
     def forward(self, x, edge_index, use_ppmi=True, cache_name='default_cache', edge_weight=None):
+        """
+        Project and propagate node features.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input node features.
+        edge_index : torch.Tensor
+            Local edges of shape ``[2, num_edges]``.
+        use_ppmi : bool, optional
+            Use the cached global graph. Default: ``True``.
+        cache_name : str, optional
+            Name of a registered global graph. Default: ``'default_cache'``.
+        edge_weight : torch.Tensor or None, optional
+            Local edge weights, used only when ``use_ppmi=False``. Default: ``None``.
+
+        Returns
+        -------
+        torch.Tensor
+            Updated node features of shape ``[num_nodes, out_channels]``.
+        """
         x = torch.matmul(x, self.weight)
         if use_ppmi:
-            if cache_name not in self.cache_dict:
-                raise ValueError('An explicit precomputed global cache is required: ' + cache_name)
             edge_index, norm = self.cache_dict[cache_name]
         else:
             edge_index, norm = self.norm2(edge_index, x.size(0), edge_weight, self.improved, x.dtype)
@@ -83,26 +123,95 @@ class ImGDAConv(MessagePassing):
 
 
 class ImGDACompensation(nn.Module):
+    """
+    Learn an additive embedding correction for each selected source node.
+
+    Parameters
+    ----------
+    nodes_num : int
+        Number of selected source nodes.
+    encoder_dim : int
+        Embedding dimension.
+    device : str or torch.device
+        Device on which to store the correction.
+    """
 
     def __init__(self, nodes_num, encoder_dim, device):
         super(ImGDACompensation, self).__init__()
-        self.compensation = nn.Parameter(torch.FloatTensor(nodes_num, encoder_dim).normal_(-1, 1).to(device))
+        self.compensation = nn.Parameter(
+            torch.FloatTensor(nodes_num, encoder_dim).normal_(-1, 1).to(device)
+        )
         self.compensation.requires_grad_(True)
 
     def forward(self, input):
+        """Add the correction to embeddings in the selected source node order."""
         return input + self.compensation
 
-class ImGDAEncoder(nn.Module):
+
+class ImGDABase(nn.Module):
+    """
+    Encode nodes with two convolution layers shared by both graph branches.
+
+    Parameters
+    ----------
+    source_data : torch_geometric.data.Data
+        Selected source graph that determines the compensation size.
+    encoder_dim : int
+        Hidden and output embedding dimension.
+    drop_out : float
+        Dropout probability between layers.
+    feature_num : int
+        Input feature dimension.
+    device : str or torch.device
+        Device on which to initialize the encoder.
+    **kwargs : dict
+        Additional arguments for each convolution.
+
+    Notes
+    -----
+    Dropout modules are stored in a plain list, so calling ``eval()`` does not
+    disable them. This preserves the behavior of the released implementation.
+    """
 
     def __init__(self, source_data, encoder_dim, drop_out, feature_num, device, **kwargs):
-        super(ImGDAEncoder, self).__init__()
+        super(ImGDABase, self).__init__()
         weights = [None, None]
         biases = [None, None]
         self.dropout_layers = [nn.Dropout(drop_out) for _ in weights]
-        self.compensation_layers = nn.ModuleList([ImGDACompensation(source_data.size(0), encoder_dim, device), ImGDACompensation(source_data.size(0), encoder_dim, device)])
-        self.conv_layers = nn.ModuleList([ImGDAConv(feature_num, encoder_dim, weight=weights[0], bias=biases[0], **kwargs), ImGDAConv(encoder_dim, encoder_dim, weight=weights[1], bias=biases[1], **kwargs)]).to(device)
+        self.compensation_layers = nn.ModuleList([
+            ImGDACompensation(source_data.size(0), encoder_dim, device),
+            ImGDACompensation(source_data.size(0), encoder_dim, device),
+        ])
+        self.conv_layers = nn.ModuleList([
+            ImGDAConv(feature_num, encoder_dim, weight=weights[0], bias=biases[0], **kwargs),
+            ImGDAConv(encoder_dim, encoder_dim, weight=weights[1], bias=biases[1], **kwargs),
+        ]).to(device)
 
     def forward(self, x, edge_index, cache_name, compensate, device, use_ppmi=True):
+        """
+        Extract node embeddings from one graph branch.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input node features.
+        edge_index : torch.Tensor
+            Local graph edges.
+        cache_name : str
+            Cache key for the global branch.
+        compensate : bool
+            Apply the learned correction. Use only for the selected source nodes
+            in their training order.
+        device : str or torch.device
+            Device on which to encode the graph.
+        use_ppmi : bool, optional
+            Use the cached global graph instead of local edges. Default: ``True``.
+
+        Returns
+        -------
+        torch.Tensor
+            One embedding per input node.
+        """
         x = x.to(device)
         edge_index = edge_index.to(device)
         for i, conv_layer in enumerate(self.conv_layers):
@@ -116,23 +225,44 @@ class ImGDAEncoder(nn.Module):
 
 def make_longtailed_data_remove(edge_index, label, n_data, n_cls, ratio, train_mask):
     """
-    make long-tailed data by removing nodes sequentially
-    method comes form paper 'GraphENS: Neighbor-Aware Ego Network Synthesis for Class-Imbalanced Node Classification'
-    code:https://github.com/JoonHyung-Park/GraphENS
+    Select a long-tailed training population by removing low-degree nodes.
+
+    Parameters
+    ----------
+    edge_index : torch.Tensor
+        Edges of the original source graph.
+    label : torch.Tensor
+        Class index for each original node.
+    n_data : sequence of int
+        Training node count for each class before removal.
+    n_cls : int
+        Number of classes.
+    ratio : int
+        Requested head-to-tail class size ratio.
+    train_mask : torch.Tensor
+        Boolean mask of the original training population.
+
+    Returns
+    -------
+    tuple
+        Kept counts by class, updated training mask, kept training indices by
+        class, retained node mask, and retained edge mask.
     """
     n_data = torch.tensor(n_data)
     sorted_n_data, indices = torch.sort(n_data, descending=True)
     inv_indices = np.zeros(n_cls, dtype=np.int64)
     for i in range(n_cls):
         inv_indices[indices[i].item()] = i
-    assert (torch.arange(len(n_data))[indices][torch.tensor(inv_indices)] - torch.arange(len(n_data))).sum().abs() < 1e-12
+    assert (
+        torch.arange(len(n_data))[indices][torch.tensor(inv_indices)] - torch.arange(len(n_data))
+    ).sum().abs() < 1e-12
     mu = np.power(1 / ratio, 1 / (n_cls - 1))
     n_round = []
     class_num_list = []
     for i in range(n_cls):
         assert int(sorted_n_data[0].item() * np.power(mu, i)) >= 1
         class_num_list.append(int(min(sorted_n_data[0].item() * np.power(mu, i), sorted_n_data[i])))
-        '\n        remove low degree nodes sequentially(10 steps)\n        since degrees of remaining nodes are changed when some nodes are moved\n        '
+        # Recompute degrees across rounds because earlier removals change the graph.
         if i < 1:
             n_round.append(1)
         else:
@@ -177,25 +307,34 @@ def make_longtailed_data_remove(edge_index, label, n_data, n_cls, ratio, train_m
 
 def sampling_anchor_nodes(data, k, use_ppmi=True):
     """
-    sampling anchor nodes for each class according to degrees
+    Select the highest-degree source anchors in each class.
 
-    parameters:
-    k: number of anchor nodes for each class
-    use_ppmi: sampling for local or global branch
-    return: a list of anchor nodes
+    Parameters
+    ----------
+    data : torch_geometric.data.Data
+        Selected source graph with node labels and global edges.
+    k : int
+        Maximum number of anchors per class.
+    use_ppmi : bool, optional
+        Rank by global rather than local out-degree. Default: ``True``.
+
+    Returns
+    -------
+    list of int
+        Node indices grouped by class, in descending degree order within each class.
     """
     labels = data.y
     anchor_nodes = []
     label_class = torch.unique(labels)
     if use_ppmi:
         for label in label_class:
-            class_nodes = (labels == label).nonzero().squeeze()
+            class_nodes = (labels == label).nonzero(as_tuple=True)[0]
             degrees = torch_geometric.utils.degree(data.global_adj[0], num_nodes=data.num_nodes)
             _, sorted_indices = torch.sort(degrees[class_nodes], descending=True)
             anchor_nodes.extend(class_nodes[sorted_indices[:k]].tolist())
     else:
         for label in label_class:
-            class_nodes = (labels == label).nonzero().squeeze()
+            class_nodes = (labels == label).nonzero(as_tuple=True)[0]
             degrees = torch_geometric.utils.degree(data.edge_index[0], num_nodes=data.num_nodes)
             _, sorted_indices = torch.sort(degrees[class_nodes], descending=True)
             anchor_nodes.extend(class_nodes[sorted_indices[:k]].tolist())
@@ -203,22 +342,69 @@ def sampling_anchor_nodes(data, k, use_ppmi=True):
 
 def calculate_prototypes(anchor_nodes, node_embeddings, labels):
     """
-    calculate prototypes for each class
-    return: (tensor) prototypes
+    Compute the mean source embedding for each observed class.
+
+    Parameters
+    ----------
+    anchor_nodes : list of int
+        Retained for compatibility with the released code; unused here.
+    node_embeddings : torch.Tensor
+        Source embeddings for the selected training graph.
+    labels : torch.Tensor
+        Class index for each embedding.
+
+    Returns
+    -------
+    torch.Tensor
+        One prototype per observed class, in ascending label order.
+
+    Notes
+    -----
+    Prototypes use all selected source nodes. The contrastive loss uses anchors
+    separately when choosing positive examples.
     """
     label_class = torch.unique(labels)
     prototypes = []
     for label in label_class:
-        class_nodes = (labels == label).nonzero().squeeze()
+        class_nodes = (labels == label).nonzero(as_tuple=True)[0]
         class_nodes_embeddings = node_embeddings[class_nodes]
         prototype = torch.mean(class_nodes_embeddings, dim=0)
         prototypes.append(prototype.unsqueeze(0))
     prototypes = torch.cat(prototypes, dim=0)
     return prototypes
 
-def cross_branch_prototype_contrastive_loss(local_anchor_nodes, global_anchor_nodes, local_nodes_embeddings, global_nodes_embeddings, labels, counts, dynamic_temperature=0.5):
+def cross_branch_prototype_contrastive_loss(local_anchor_nodes,
+                                          global_anchor_nodes,
+                                          local_nodes_embeddings,
+                                          global_nodes_embeddings,
+                                          labels,
+                                          counts,
+                                          dynamic_temperature=0.5):
     """
-    calculate cross branch CL loss
+    Contrast class prototypes against the source embeddings of both branches.
+
+    Parameters
+    ----------
+    local_anchor_nodes : list of int
+        Local source anchors.
+    global_anchor_nodes : list of int
+        Global source anchors.
+    local_nodes_embeddings : torch.Tensor
+        Local embeddings of all selected source nodes.
+    global_nodes_embeddings : torch.Tensor
+        Global embeddings of all selected source nodes.
+    labels : torch.Tensor
+        Contiguous class indices with every class represented.
+    counts : torch.Tensor
+        Original source class counts before long-tail selection.
+    dynamic_temperature : float, optional
+        Lower bound of the class-dependent temperature. Default: ``0.5``.
+
+    Returns
+    -------
+    torch.Tensor
+        Scalar cross-branch loss. The numerator uses same-class anchors;
+        the similarity denominator includes all nodes in that branch.
     """
     local_prototypes = calculate_prototypes(local_anchor_nodes, local_nodes_embeddings, labels)
     global_prototypes = calculate_prototypes(global_anchor_nodes, global_nodes_embeddings, labels)
@@ -247,9 +433,37 @@ def cross_branch_prototype_contrastive_loss(local_anchor_nodes, global_anchor_no
     N = (len(prototypes) + len(nodes_embeddings)) * (label_class.max().item() + 1)
     return loss / N
 
-def cross_domain_contrastive_loss(local_anchor_nodes, global_anchor_nodes, local_nodes_embeddings, global_nodes_embeddings, target_embedding, labels, temperature=1):
+def cross_domain_contrastive_loss(local_anchor_nodes,
+                                  global_anchor_nodes,
+                                  local_nodes_embeddings,
+                                  global_nodes_embeddings,
+                                  target_embedding,
+                                  labels,
+                                  temperature=1):
     """
-    calculate cross domain CL loss
+    Align target embeddings with source anchors using branch-specific pseudo-labels.
+
+    Parameters
+    ----------
+    local_anchor_nodes : list of int
+        Local source anchors.
+    global_anchor_nodes : list of int
+        Global source anchors.
+    local_nodes_embeddings : torch.Tensor
+        Local source embeddings.
+    global_nodes_embeddings : torch.Tensor
+        Global source embeddings.
+    target_embedding : torch.Tensor
+        Sum of the local and global target embeddings.
+    labels : torch.Tensor
+        Source class indices used to assign target pseudo-labels.
+    temperature : float, optional
+        Temperature for cosine similarities. Default: ``1``.
+
+    Returns
+    -------
+    torch.Tensor
+        Scalar cross-domain loss. Classes with no assigned target nodes are skipped.
     """
     anchor_nodes = [local_anchor_nodes, global_anchor_nodes]
     source_embedding = [local_nodes_embeddings, global_nodes_embeddings]
@@ -280,14 +494,43 @@ def cross_domain_contrastive_loss(local_anchor_nodes, global_anchor_nodes, local
             loss += target_loss.mean() / target_loss.size(0)
     return loss / len(anchor_nodes)
 
-def imgda_objective(encoder, classifier, source, target, original_source_counts,
-                    source_cache_name, target_cache_name, k=200, dynamic_temperature=0.5):
-    """Released three-loss objective; target labels are never read.
+def imgda_objective(encoder,
+                    classifier,
+                    source,
+                    target,
+                    original_source_counts,
+                    source_cache_name,
+                    target_cache_name,
+                    k=200,
+                    dynamic_temperature=0.5):
+    """
+    Compute the released three-part ImGDA training objective.
 
-    Counts come from the original complete source labels, as in official main.py.
-    Source classification uses the global branch. Target contrastive features
-    sum both branches. The source population must contain at least two nodes
-    per class, matching the released prototype/anchor implementation's scope.
+    Parameters
+    ----------
+    encoder : ImGDABase
+        Shared encoder with registered global caches for both graphs.
+    classifier : torch.nn.Module
+        Classifier applied to global source embeddings.
+    source : torch_geometric.data.Data
+        Selected source graph with at least two nodes per class.
+    target : torch_geometric.data.Data
+        Target graph. Its labels are unused.
+    original_source_counts : torch.Tensor
+        Source class counts before long-tail selection.
+    source_cache_name : str
+        Key of the normalized global source graph.
+    target_cache_name : str
+        Key of the normalized global target graph.
+    k : int, optional
+        Maximum anchors per class and branch. Default: ``200``.
+    dynamic_temperature : float, optional
+        Lower bound of the cross-branch temperature. Default: ``0.5``.
+
+    Returns
+    -------
+    dict
+        Total loss, the three component losses, and source anchors by branch.
     """
     device = source.x.device
     local_source = encoder(source.x, source.edge_index, source_cache_name, True, device, use_ppmi=False)
@@ -297,11 +540,19 @@ def imgda_objective(encoder, classifier, source, target, original_source_counts,
     target_embedding = local_target + global_target
     local_anchors = sampling_anchor_nodes(source, k, use_ppmi=False)
     global_anchors = sampling_anchor_nodes(source, k, use_ppmi=True)
-    branch_loss = cross_branch_prototype_contrastive_loss(local_anchors, global_anchors,
-        local_source, global_source, source.y, original_source_counts, dynamic_temperature)
-    domain_loss = cross_domain_contrastive_loss(local_anchors, global_anchors,
-        local_source, global_source, target_embedding, source.y)
+    branch_loss = cross_branch_prototype_contrastive_loss(
+        local_anchors, global_anchors, local_source, global_source,
+        source.y, original_source_counts, dynamic_temperature,
+    )
+    domain_loss = cross_domain_contrastive_loss(
+        local_anchors, global_anchors, local_source, global_source, target_embedding, source.y,
+    )
     classification_loss = F.cross_entropy(classifier(global_source), source.y)
-    return dict(loss=branch_loss + domain_loss + classification_loss,
-                cb_cL_loss=branch_loss, cd_cl_loss=domain_loss, lc_loss=classification_loss,
-                local_anchor_nodes=local_anchors, global_anchor_nodes=global_anchors)
+    return dict(
+        loss=branch_loss + domain_loss + classification_loss,
+        cb_cL_loss=branch_loss,
+        cd_cl_loss=domain_loss,
+        lc_loss=classification_loss,
+        local_anchor_nodes=local_anchors,
+        global_anchor_nodes=global_anchors,
+    )
