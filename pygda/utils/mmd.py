@@ -97,13 +97,13 @@ def get_MMD(source_feat, target_feat, kernel_mul=2.0, kernel_num=5, fix_sigma=No
                               kernel_num=kernel_num,
                               fix_sigma=fix_sigma)
     
-    batch_size = min(int(source_feat.size()[0]), int(target_feat.size()[0]))  
-    
-    XX = kernels[:batch_size, :batch_size]
-    YY = kernels[batch_size:, batch_size:]
-    XY = kernels[:batch_size, batch_size:]
-    YX = kernels[batch_size:, :batch_size]
-    loss = torch.mean(XX + YY - XY - YX)
+    n_source = source_feat.size(0)
+
+    XX = kernels[:n_source, :n_source]
+    YY = kernels[n_source:, n_source:]
+    XY = kernels[:n_source, n_source:]
+    YX = kernels[n_source:, :n_source]
+    loss = torch.mean(XX) + torch.mean(YY) - torch.mean(XY) - torch.mean(YX)
     return loss
 
 def MMD(source_feat, target_feat, sampling_num=1000, times=5):
